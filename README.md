@@ -10,7 +10,7 @@ Dante Fuel is a standalone FiveM fuel resource based on the **ox_fuel 1.5.4** fo
 - Native FiveM DUI pump LCDs rendered with native world-space textured polygons.
 - Pump and vehicle interactions through sd-interact.
 - Physical fuel nozzles that come out of their pump holsters, attach to the player's hand, and insert into a vehicle's fuel-cap area.
-- Native FiveM rope hoses that follow the held or vehicle-mounted nozzle.
+- Custom segmented rubber hose using Whip Fuel's `whip_hose_seg` model, driven by native FiveM rope physics and attached to the nozzle.
 - A held nozzle drops if the player walks more than 5 metres from its pump and returns to its holster after 30 seconds on the ground.
 - Modern pump models (1a/1b/1c/1d) create a loose pump body when driven away with the nozzle inserted. Older pump models snap the hose instead.
 - Press **G** to drop a nozzle being carried. Use the pump interaction to take or return it, and the vehicle interaction to insert, fuel, or remove it.
@@ -21,7 +21,7 @@ Dante Fuel is a standalone FiveM fuel resource based on the **ox_fuel 1.5.4** fo
 - [ox_inventory](https://github.com/overextended/ox_inventory) 2.30.0 or newer
 - [sd-interact](https://docs.samueldev.shop/resources/interact)
 
-No dependency on ox_target, whip_core, whip_fuel, whip_rope, or WorldQuad is required. Hose rendering uses FiveM's native rope functions.
+No runtime dependency on ox_target, whip_core, whip_fuel, whip_rope, or WorldQuad is required. Hose physics uses FiveM's native rope functions; the segmented hose model is bundled under the upstream LGPL-3.0 license.
 
 ## Installation
 
@@ -64,7 +64,7 @@ The resource retains the upstream `setPaymentMethod` and `setMoneyCheck` integra
 Dante Fuel is an independent integration project. Its fuel system is based on the Overextended ox_fuel project. Pump LCD assets and presentation concepts are adapted from Whip Fuel; the physical nozzle workflow is independently integrated with native FiveM entities and ropes. Upstream notices and license texts remain in the repository.
 
 - **ox_fuel:** https://github.com/overextended/ox_fuel
-- **Whip Fuel:** https://github.com/WHIPFX/whip_fuel
+- **Whip Fuel hose model:** https://github.com/WHIPFX/whip_fuel (the `stream/hose` assets are included under LGPL-3.0; see `COPYING.LESSER`).
 - **sd-interact:** https://docs.samueldev.shop/resources/interact
 
 Dante Fuel is not an official release of or endorsed by those upstream projects. Review the included license files before redistributing modified versions.

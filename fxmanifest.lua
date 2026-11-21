@@ -28,8 +28,13 @@ server_scripts {
 
 client_script 'client/init.lua'
 
+data_file 'DLC_ITYP_REQUEST' 'stream/hose/whip_hose_seg.ytyp'
+
 files {
     'html/pump3d/*.html',
+    'stream/hose/*.ydr',
+    'stream/hose/*.ytd',
+    'stream/hose/*.ytyp',
     'locales/*.json',
     'data/stations.lua',
     'client/*.lua',

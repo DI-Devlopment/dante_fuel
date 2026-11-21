@@ -1,16 +1,100 @@
 -- Native FiveM nozzle props and rope hoses. The server replicates nozzle state; each client draws its own rope.
 local screens = require 'client.screens'
 local nozzle = { states = {}, heldKey = nil }
-local ropes, holsters, hiddenPumps = {}, {}, {}
+local ropes, hoseSegments, holsters, hiddenPumps = {}, {}, {}, {}
+local HOSE_MODEL = joaat('whip_hose_seg')
+local HOSE_MODEL_NS = joaat('whip_hose_seg_ns')
+local HOSE_SEGMENT_LENGTH = 0.25
+
+local function hoseModel()
+    return IsModelInCdimage(HOSE_MODEL) and HOSE_MODEL or HOSE_MODEL_NS
+end
+
+local function createHoseSegments(key, count)
+    if hoseSegments[key] then return end
+    local model = hoseModel()
+    if not IsModelInCdimage(model) then return end
+    RequestModel(model)
+    local deadline = GetGameTimer() + 3000
+    while not HasModelLoaded(model) and GetGameTimer() < deadline do Wait(0) end
+    if not HasModelLoaded(model) then return end
+    local props = {}
+    for i = 1, count do
+        local prop = CreateObjectNoOffset(model, 0.0, 0.0, 0.0, false, false, false)
+        if prop and prop ~= 0 then
+            SetEntityCollision(prop, false, false)
+            FreezeEntityPosition(prop, true)
+            SetEntityLodDist(prop, 500)
+            props[#props + 1] = prop
+        end
+    end
+    SetModelAsNoLongerNeeded(model)
+    hoseSegments[key] = props
+end
+
+local function removeHoseSegments(key)
+    local props = hoseSegments[key]
+    if not props then return end
+    for i = 1, #props do
+        if DoesEntityExist(props[i]) then DeleteEntity(props[i]) end
+    end
+    hoseSegments[key] = nil
+end
+
+local function updateHoseSegments(key, rope)
+    local count = GetRopeVertexCount(rope)
+    if not count or count < 2 then return end
+    createHoseSegments(key, count - 1)
+    local props = hoseSegments[key]
+    if not props then return end
+    for i = 1, math.min(#props, count - 1) do
+        local a, b = GetRopeVertexCoord(rope, i - 1), GetRopeVertexCoord(rope, i)
+        local dx, dy, dz = b.x-a.x, b.y-a.y, b.z-a.z
+        local len = math.sqrt(dx*dx + dy*dy + dz*dz)
+        if len > 0.0001 and DoesEntityExist(props[i]) then
+            local fy, fx, fz = dx/len, -dy/len, 0.0
+            local rightLen = math.sqrt(fx*fx + fy*fy)
+            if rightLen < 0.0001 then fx, fy, rightLen = 1.0, 0.0, 1.0 end
+            fx, fy = fx/rightLen, fy/rightLen
+            local ux, uy, uz = fy*fz - 0.0*fy, 0.0*fx - fx*fz, fx*fy - fy*fx
+            -- Build a stable frame with local +Y along the hose segment.
+            local tx, ty, tz = dx/len, dy/len, dz/len
+            local rx, ry, rz = ty, -tx, 0.0
+            local rl = math.sqrt(rx*rx + ry*ry + rz*rz)
+            if rl < 0.0001 then rx, ry, rz, rl = 1.0, 0.0, 0.0, 1.0 end
+            rx, ry, rz = rx/rl, ry/rl, rz/rl
+            local ux2, uy2, uz2 = ry*tz-rz*ty, rz*tx-rx*tz, rx*ty-ry*tx
+            local scale = len / HOSE_SEGMENT_LENGTH
+            SetEntityMatrix(props[i], tx*scale, ty*scale, tz*scale,
+                rx, ry, rz, ux2, uy2, uz2,
+                (a.x+b.x)*0.5, (a.y+b.y)*0.5, (a.z+b.z)*0.5)
+        end
+    end
+end
+
+CreateThread(function()
+    while true do
+        local active = false
+        for key, rope in pairs(ropes) do
+            if DoesRopeExist(rope) then
+                active = true
+                updateHoseSegments(key, rope)
+            else
+                removeHoseSegments(key)
+            end
+        end
+        Wait(active and 0 or 500)
+    end
+end)
 local NOZZLE = joaat('prop_cs_fuel_nozle')
 local HOLSTER = {
     A = { pos = vec3(0.3447, -0.3744, 0.7044), rot = vec3(0.251, -0.076, 0.066) },
     B = { pos = vec3(-0.3447, 0.3655, 0.7044), rot = vec3(0.259, -0.077, -179.934) },
 }
 local function entityFrom(net)
-    if not net or net == 0 or not NetworkDoesNetworkIdExist(net) then return nil end
+    if not net or net == 0 then return nil end
     local e = NetworkGetEntityFromNetworkId(net)
-    return e ~= 0 and DoesEntityExist(e) and e or nil
+    return e and e ~= 0 and DoesEntityExist(e) and e or nil
 end
 
 local function takeControl(entity)
@@ -84,6 +168,7 @@ local function removeRope(key)
         if DoesRopeExist(r) then DeleteRope(r) end
         ropes[key] = nil
     end
+    removeHoseSegments(key)
 end
 local function restorePump(key)
     local p = hiddenPumps[key]
@@ -135,12 +220,20 @@ local function ropeEnds(data)
             local deadline = GetGameTimer() + 2000
             while not RopeAreTexturesLoaded() and GetGameTimer() < deadline do Wait(0) end
         end
-        local rope = AddRope(start.x, start.y, start.z, 0.0, 0.0, 0.0, 6.0, 4, 6.0, 0.1, 1.0, false, false, false, 1.0, false, 0)
+        local rope = AddRope(start.x, start.y, start.z, 0.0, 0.0, 0.0, 4.5, 4, 4.5, 0.1, 1.0, false, false, false, 1.0, false, 0)
         if rope and rope ~= 0 then
             AttachEntitiesToRope(rope, pump, obj, start.x, start.y, start.z,
                 finish.x, finish.y, finish.z, 6.0, false, false, nil, nil)
             RopeForceLength(rope, 4.5)
             ropes[data.key] = rope
+            CreateThread(function()
+                local deadline = GetGameTimer() + 3000
+                while GetGameTimer() < deadline and DoesRopeExist(rope) do
+                    updateHoseSegments(data.key, rope)
+                    if hoseSegments[data.key] then return end
+                    Wait(100)
+                end
+            end)
             wakeTornPump(data)
         end
     end
