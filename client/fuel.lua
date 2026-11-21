@@ -69,7 +69,6 @@ function fuel.startFueling(vehicle, isPump, pumpCoords)
 
     local sessionId
     if isPump then
-        pumpCoords = pumpCoords or state.nearestPump
         if not pumpCoords then return end
 
         local reservation, reason = lib.callback.await('dante_fuel:beginLiveFuel', false,

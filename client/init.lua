@@ -7,7 +7,6 @@ SetFuelConsumptionRateMultiplier(config.globalFuelConsumptionRate)
 
 AddTextEntry('ox_fuel_station', locale('fuel_station_blip'))
 
-local state = require 'client.state'
 local fuel  = require 'client.fuel'
 
 require 'client.stations'
