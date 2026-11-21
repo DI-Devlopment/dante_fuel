@@ -217,7 +217,11 @@ end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    for _, n in pairs(nozzles) do cleanupPumpCopy(n) end
+    for _, n in pairs(nozzles) do
+        cleanupPumpCopy(n)
+        local obj = entityFrom(n.nozzleNet)
+        if obj ~= 0 and DoesEntityExist(obj) then DeleteEntity(obj) end
+    end
 end)
 
 exports('hasNozzleForVehicle', function(playerId, netId, pumpCoords)
