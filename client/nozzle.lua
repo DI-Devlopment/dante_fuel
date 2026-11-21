@@ -1,5 +1,6 @@
 -- Native FiveM nozzle props and rope hoses. The server replicates nozzle state; each client draws its own rope.
 local config = require 'config'
+local screens = require 'client.screens'
 local nozzle = { states = {}, heldKey = nil }
 local ropes, holsters, hiddenPumps = {}, {}, {}
 local NOZZLE = joaat('prop_cs_fuel_nozle')
@@ -92,9 +93,15 @@ local function apply(data)
         restorePump(data.key)
         setHolster(data, true)
         if nozzle.heldKey == data.key then nozzle.heldKey = nil end
+        screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'thanks')
         return
     end
     setHolster(data, false)
+    if data.state == 'hand' then
+        screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'nozzle_out')
+    elseif data.state == 'ground' then
+        screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'return_nozzle')
+    end
     if data.state == 'hand' and data.holder == me then nozzle.heldKey = data.key end
     if nozzle.heldKey == data.key and (data.state ~= 'hand' or data.holder ~= me) then nozzle.heldKey = nil end
     if data.snapped then
@@ -132,7 +139,7 @@ end
 function nozzle.take(pump)
     if not pump or pump == 0 or not DoesEntityExist(pump) then return end
     local coords = GetEntityCoords(pump)
-    TriggerServerEvent('dante_fuel:takeNozzle', { x=coords.x, y=coords.y, z=coords.z }, GetEntityModel(pump), sideFor(pump))
+    TriggerServerEvent('dante_fuel:takeNozzle', { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) }, GetEntityModel(pump), sideFor(pump))
 end
 function nozzle.returnAt(pump)
     if not pump or pump == 0 then return end
