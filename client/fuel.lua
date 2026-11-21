@@ -123,11 +123,17 @@ function fuel.startFueling(vehicle, isPump, pumpCoords)
 
         if isPump then
             -- Only add fuel after the server accepts the tick. Rejected ticks never reach the tank or the bill.
-            local accepted = lib.callback.await('dante_fuel:acceptLiveFuelTick', false, sessionId)
+            local accepted, reason = lib.callback.await('dante_fuel:acceptLiveFuelTick', false, sessionId)
             if accepted then
                 acceptedTicks = acceptedTicks + 1
                 fuelAmount = math.min(100.0, startFuel + acceptedTicks * config.refillValue)
                 screens.setPumpState(pumpCoords, 'fueling', { progress = fuelAmount / 100 })
+            elseif reason == 'fueling_interrupted' or reason == 'session_expired' or reason == 'tank_full' then
+                state.isFueling = false
+                if reason == 'fueling_interrupted' then
+                    lib.notify({ type = 'error', description = 'Fueling stopped because the hose or vehicle moved.' })
+                end
+                break
             else
                 if not state.isFueling then break end
                 Wait(50)

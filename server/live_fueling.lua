@@ -93,12 +93,13 @@ end)
 
 lib.callback.register('dante_fuel:acceptLiveFuelTick', function(source, sessionId)
     local session = sessions[source]
-    if not session or session.id ~= sessionId or session.consumed >= session.allowedTicks then
-        return false
-    end
+    if not session or session.id ~= sessionId then return false, 'session_expired' end
+    if session.consumed >= session.allowedTicks then return false, 'tank_full' end
+
     local now = GetGameTimer()
-    if now - session.lastTick < math.floor(config.refillTick * 0.9) then return false end
-    if not validSessionPlayer(source, session) then return false end
+    if now - session.lastTick < math.floor(config.refillTick * 0.9) then return false, 'wait' end
+    if not validSessionPlayer(source, session) then return false, 'fueling_interrupted' end
+
     session.consumed = session.consumed + 1
     session.lastTick = now
     return true, session.consumed
