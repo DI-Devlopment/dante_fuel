@@ -24,7 +24,7 @@ local function send(n, target)
     TriggerClientEvent('dante_fuel:nozzleState', target or -1, {
         key=n.key, pump=n.pump, model=n.model, side=n.side, state=n.state,
         holder=n.holder, vehicle=n.vehicle, offset=n.offset, nozzleNet=n.nozzleNet, ground=n.ground,
-        torn=n.torn, pumpNet=n.pumpNet, snapped=n.snapped,
+        torn=n.torn, tornOwner=n.tornOwner, pumpNet=n.pumpNet, snapped=n.snapped,
     })
 end
 local function cleanupPumpCopy(n)
@@ -32,7 +32,7 @@ local function cleanupPumpCopy(n)
         local e = entityFrom(n.pumpNet)
         if e ~= 0 and DoesEntityExist(e) then DeleteEntity(e) end
     end
-    n.pumpNet, n.torn = nil, false
+    n.pumpNet, n.torn, n.tornOwner = nil, false, nil
 end
 local function reset(n, reason)
     cleanupPumpCopy(n)
@@ -86,7 +86,7 @@ RegisterNetEvent('dante_fuel:dropNozzle', function(at)
     local ped = GetPlayerPed(src)
     if ped == 0 then return end
     local p = GetEntityCoords(ped)
-    local drop = type(at) == 'table' and coordsOf(at) or GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.8, -0.8)
+    local drop = type(at) == 'table' and coordsOf(at) or p
     if #(drop - p) > 3.0 then drop = GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.8, -0.8) end
     found.state, found.holder, found.vehicle = 'ground', nil, nil
     found.ground = {x=drop.x,y=drop.y,z=drop.z}
@@ -141,6 +141,17 @@ RegisterNetEvent('dante_fuel:returnNozzle', function(key)
     reset(n, 'returned')
 end)
 
+RegisterNetEvent('dante_fuel:tornPumpCreated', function(key, netId)
+    local src = source
+    local n = nozzles[key]
+    if not n or not n.torn or n.tornOwner ~= src or type(netId) ~= 'number' then return end
+    local copy = entityFrom(netId)
+    if copy == 0 or not DoesEntityExist(copy) or GetEntityModel(copy) ~= n.model
+        or #(GetEntityCoords(copy) - coordsOf(n.pump)) > 3.0 then return end
+    n.pumpNet = netId
+    send(n)
+end)
+
 RegisterNetEvent('dante_fuel:clientReady', function()
     local src = source
     for _, n in pairs(nozzles) do if n.state ~= 'holstered' then send(n, src) end end
@@ -170,15 +181,22 @@ CreateThread(function()
                 elseif #(GetEntityCoords(vehicle) - coordsOf(n.pump)) > 5.0 and not n.snapped then
                     -- Older pumps snap the hose. Modern pumps get a replicated loose pump copy.
                     if MODERN[n.model] then
-                        local copy = CreateObjectNoOffset(n.model, n.pump.x, n.pump.y, n.pump.z, true, true, false)
-                        if copy and copy ~= 0 then
-                            SetEntityHeading(copy, n.heading or 0.0)
-                            n.pumpNet = NetworkGetNetworkIdFromEntity(copy)
-                            n.torn = true
-                        else n.snapped = true end
-                    else n.snapped = true end
-                    n.changedAt = now
-                    send(n)
+                        local owner = NetworkGetEntityOwner(vehicle)
+                        if owner and owner > 0 then
+                            n.torn, n.tornOwner = true, owner
+                            n.changedAt = now
+                            send(n)
+                            TriggerClientEvent('dante_fuel:createTornPump', owner, n.key, n.pump, n.model, n.heading or 0.0)
+                        else
+                            n.snapped = true
+                            n.changedAt = now
+                            send(n)
+                        end
+                    else
+                        n.snapped = true
+                        n.changedAt = now
+                        send(n)
+                    end
                 end
             end
         end
