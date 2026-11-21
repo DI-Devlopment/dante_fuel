@@ -40,6 +40,8 @@ end
 lib.callback.register('dante_fuel:beginLiveFuel', function(source, netId, pumpCoords, maxTicks)
 	if sessions[source] then return false, 'session_active' end
 	if type(netId) ~= 'number' or type(maxTicks) ~= 'number' or maxTicks < 1 then return false, 'invalid_request' end
+	if type(pumpCoords) ~= 'table' or type(pumpCoords.x) ~= 'number' or type(pumpCoords.y) ~= 'number' or type(pumpCoords.z) ~= 'number' then return false, 'invalid_pump' end
+	if not exports[GetCurrentResourceName()]:hasNozzleForVehicle(source, netId, pumpCoords) then return false, 'nozzle_required' end
 	maxTicks = math.floor(math.min(maxTicks, 500))
 
 	local ped = GetPlayerPed(source)
@@ -88,6 +90,7 @@ RegisterNetEvent('dante_fuel:liveFuelTick', function(sessionId)
 	local ped = GetPlayerPed(source)
 	local vehicle = NetworkGetEntityFromNetworkId(session.netId)
 	if ped == 0 or vehicle == 0 or GetEntityType(vehicle) ~= 2
+		or not exports[GetCurrentResourceName()]:hasNozzleForVehicle(source, session.netId, { x=session.pump.x, y=session.pump.y, z=session.pump.z })
 		or #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) > 5.0
 		or #(GetEntityCoords(vehicle) - session.pump) > 12.0 then
 		return
