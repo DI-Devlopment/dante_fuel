@@ -7,7 +7,7 @@ local SCREEN_W, SCREEN_H = 0.38, 0.304
 local SCREEN_RANGE = 20.0
 local SCREEN_THANKS_MS = 4000
 local SCREEN_IDLE_MS = 15000
-local SCREEN_RETRY_MS = 30000
+local SCREEN_RETRY_MS = 3000
 
 local CELLS = { { 0, 0, 640, 512 } }
 for i = 0, 3 do CELLS[#CELLS + 1] = { 640 + (i % 2) * 320, (i // 2) * 256, 320, 256 } end
