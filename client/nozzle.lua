@@ -3,7 +3,7 @@ local screens = require 'client.screens'
 local state = require 'client.state'
 local leaks = require 'client.leaks'
 local nozzle = { states = {}, heldKey = nil }
-local ropes, hoseSegments, holsters, hiddenPumps, groundTargets = {}, {}, {}, {}, {}
+local ropes, hoseSegments, holsters, holsterParents, hiddenPumps, groundTargets = {}, {}, {}, {}, {}, {}
 local HOSE_MODEL = joaat('whip_hose_seg')
 local HOSE_MODEL_NS = joaat('whip_hose_seg_ns')
 local HOSE_SEGMENT_LENGTH = 0.25
@@ -222,8 +222,20 @@ local function restorePump(key)
     if p and DoesEntityExist(p) then SetEntityVisible(p, true, false) end
     hiddenPumps[key] = nil
 end
+local function clearHolsters(key)
+    local pair = holsters[key]
+    if pair then
+        for _, obj in pairs(pair) do
+            if obj and DoesEntityExist(obj) then DeleteEntity(obj) end
+        end
+    end
+    holsters[key], holsterParents[key] = nil, nil
+end
+
 local function makeHolsters(pump, key)
-    if not pump or pump == 0 or not DoesEntityExist(pump) or holsters[key] then return end
+    if not pump or pump == 0 or not DoesEntityExist(pump) then return end
+    if holsters[key] and holsterParents[key] == pump then return end
+    if holsters[key] then clearHolsters(key) end
     local pair = {}
     for side, at in pairs(HOLSTER) do
         local obj = CreateObjectNoOffset(NOZZLE, 0.0, 0.0, 0.0, false, false, false)
@@ -234,7 +246,7 @@ local function makeHolsters(pump, key)
             pair[side] = obj
         end
     end
-    holsters[key] = pair
+    holsters[key], holsterParents[key] = pair, pump
 end
 local function setHolster(data, visible)
     local prefix = data.key:sub(1, -3)
@@ -617,9 +629,7 @@ AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     for key in pairs(ropes) do removeRope(key) end
     for key in pairs(nozzle.states) do leaks.stop(key) end
-    for key in pairs(holsters) do
-        for _, obj in pairs(holsters[key]) do if obj and DoesEntityExist(obj) then DeleteEntity(obj) end end
-    end
+    for key in pairs(holsters) do clearHolsters(key) end
     for obj in pairs(groundTargets) do
         if DoesEntityExist(obj) then exports['sd-interact']:removeLocalEntity(obj, 'dante_fuel:dropped_nozzle') end
     end
