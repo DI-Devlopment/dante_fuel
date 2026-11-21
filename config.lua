@@ -35,14 +35,12 @@ return {
 	-- Vehicle fuel consumption multiplier
 	globalFuelConsumptionRate = 10.0,
 
-	-- Gas pump models recognized by the resource
+	-- Modern GTA pump models used by Whip's physical nozzle and LCD layout.
+	-- Legacy/vintage pumps do not have the matching screen and hose attachment positions.
 	pumpModels = {
-		`prop_gas_pump_old2`,
 		`prop_gas_pump_1a`,
-		`prop_vintage_pump`,
-		`prop_gas_pump_old3`,
-		`prop_gas_pump_1c`,
 		`prop_gas_pump_1b`,
+		`prop_gas_pump_1c`,
 		`prop_gas_pump_1d`,
 	}
 }
