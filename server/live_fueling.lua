@@ -2,6 +2,7 @@
 -- No money is reserved at session start. Only accepted fuel ticks are charged once at close.
 local config = require 'config'
 local sessions = {}
+local settled = {}
 local serial = 0
 
 local function getEntity(netId)
@@ -24,17 +25,27 @@ local function validSessionPlayer(source, session)
         and #(vehicleCoords - session.pump) <= 12.0
 end
 
+local function rememberSettlement(source, session, ok, reason, fuel)
+    settled[source] = {
+        id = session.id, ok = ok, reason = reason, fuel = fuel,
+        expires = GetGameTimer() + 60000,
+    }
+    return ok, reason, fuel
+end
+
 local function closeSession(source, session)
     if not session or sessions[source] ~= session then return false, 'invalid_session' end
     sessions[source] = nil
 
     local vehicle = getEntity(session.netId)
     if session.consumed > 0 and (vehicle == 0 or GetEntityType(vehicle) ~= 2) then
-        return false, 'vehicle_missing'
+        return rememberSettlement(source, session, false, 'vehicle_missing')
     end
 
     local charge = session.consumed * config.priceTick
-    if session.consumed == 0 then return true, nil, session.startFuel end
+    if session.consumed == 0 then
+        return rememberSettlement(source, session, true, nil, session.startFuel)
+    end
 
     -- Uses ox_fuel's payment hook, preserving custom bank/framework payment methods.
     if not exports[GetCurrentResourceName()]:chargeFuel(source, charge) then
@@ -42,7 +53,7 @@ local function closeSession(source, session)
             type = 'error',
             description = locale('refuel_cannot_afford')
         })
-        return false, 'payment_failed'
+        return rememberSettlement(source, session, false, 'payment_failed')
     end
 
     local finalFuel = math.min(100.0, session.startFuel + session.consumed * config.refillValue)
@@ -51,7 +62,7 @@ local function closeSession(source, session)
         type = 'success',
         description = locale('fuel_success', math.floor(finalFuel), charge)
     })
-    return true, nil, finalFuel
+    return rememberSettlement(source, session, true, nil, finalFuel)
 end
 
 lib.callback.register('dante_fuel:beginLiveFuel', function(source, netId, pumpCoords, maxTicks)
@@ -107,8 +118,15 @@ end)
 
 lib.callback.register('dante_fuel:finishLiveFuel', function(source, sessionId)
     local session = sessions[source]
-    if not session or session.id ~= sessionId then return false, 'invalid_session' end
-    return closeSession(source, session)
+    if session and session.id == sessionId then return closeSession(source, session) end
+
+    local result = settled[source]
+    if result and result.id == sessionId then
+        settled[source] = nil
+        return result.ok, result.reason, result.fuel
+    end
+
+    return false, 'invalid_session'
 end)
 
 CreateThread(function()
@@ -123,15 +141,19 @@ CreateThread(function()
                 })
             end
         end
+        for playerId, result in pairs(settled) do
+            if now >= result.expires then settled[playerId] = nil end
+        end
         Wait(5000)
     end
 end)
 
 AddEventHandler('playerDropped', function()
-    sessions[source] = nil
+    sessions[source], settled[source] = nil, nil
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
     table.wipe(sessions)
+    table.wipe(settled)
 end)
