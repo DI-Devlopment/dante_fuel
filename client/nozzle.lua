@@ -1,6 +1,7 @@
 -- Native FiveM nozzle props and rope hoses. The server replicates nozzle state; each client draws its own rope.
 local screens = require 'client.screens'
 local state = require 'client.state'
+local leaks = require 'client.leaks'
 local nozzle = { states = {}, heldKey = nil }
 local ropes, hoseSegments, holsters, hiddenPumps, groundTargets = {}, {}, {}, {}, {}
 local HOSE_MODEL = joaat('whip_hose_seg')
@@ -289,6 +290,7 @@ local function apply(data)
     local old = nozzle.states[data.key]
     if old then removeGroundTarget(old) end
     nozzle.states[data.key] = data
+    if data.torn and data.pumpNet then leaks.start(data) else leaks.stop(data.key) end
     local me = GetPlayerServerId(PlayerId())
     if data.state == 'holstered' then
         removeRope(data.key)
@@ -614,6 +616,7 @@ RegisterKeyMapping('dante_fuel_dropnozzle', 'Drop fuel pump nozzle', 'keyboard',
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     for key in pairs(ropes) do removeRope(key) end
+    for key in pairs(nozzle.states) do leaks.stop(key) end
     for key in pairs(holsters) do
         for _, obj in pairs(holsters[key]) do if obj and DoesEntityExist(obj) then DeleteEntity(obj) end end
     end

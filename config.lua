@@ -35,6 +35,19 @@ return {
 	-- Vehicle fuel consumption multiplier
 	globalFuelConsumptionRate = 10.0,
 
+	-- Loose pump bodies used when a modern pump is torn from its island.
+	tornPumpModels = {
+		[`prop_gas_pump_1a`] = `whip_pump_torn_1a`,
+		[`prop_gas_pump_1b`] = `whip_pump_torn_1b`,
+		[`prop_gas_pump_1c`] = `whip_pump_torn`,
+		[`prop_gas_pump_1d`] = `whip_pump_torn_1d`,
+	},
+
+	-- Fuel spill duration after a modern pump tears away. The spill leaves a trail
+	-- behind the vehicle and can ignite into script fire.
+	spillDuration = 20,
+	spillIgnitionDelay = 2.5,
+
 	-- Modern GTA pump models used by Whip's physical nozzle and LCD layout.
 	-- Legacy/vintage pumps do not have the matching screen and hose attachment positions.
 	pumpModels = {
