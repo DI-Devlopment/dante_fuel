@@ -12,6 +12,64 @@ local function entityFrom(net)
     local e = NetworkGetEntityFromNetworkId(net)
     return e ~= 0 and DoesEntityExist(e) and e or nil
 end
+
+local function takeControl(entity)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return false end
+    if NetworkHasControlOfEntity(entity) then return true end
+    NetworkRequestControlOfEntity(entity)
+    local untilAt = GetGameTimer() + 1200
+    while not NetworkHasControlOfEntity(entity) and GetGameTimer() < untilAt do
+        Wait(0)
+        NetworkRequestControlOfEntity(entity)
+    end
+    return NetworkHasControlOfEntity(entity)
+end
+
+local function attachToHand(data)
+    if data.holder ~= GetPlayerServerId(PlayerId()) then return end
+    local obj = entityFrom(data.nozzleNet)
+    if not obj or not takeControl(obj) then return end
+    local ped = PlayerPedId()
+    local bone = GetPedBoneIndex(ped, 28422)
+    if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
+    SetEntityCollision(obj, false, false)
+    AttachEntityToEntity(obj, ped, bone, 0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
+end
+
+local function attachToVehicle(data)
+    local obj, vehicle = entityFrom(data.nozzleNet), entityFrom(data.vehicle)
+    if not obj or not vehicle or not takeControl(obj) then return end
+    if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
+    SetEntityCollision(obj, false, false)
+    local off = data.offset or { x=0.0, y=0.0, z=0.0 }
+    AttachEntityToEntity(obj, vehicle, 0, off.x, off.y, off.z, -25.0, 0.0, 180.0, false, false, false, false, 2, true)
+end
+
+local function dropToGround(data)
+    local obj = entityFrom(data.nozzleNet)
+    if not obj or not takeControl(obj) then return end
+    if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
+    local p = data.ground
+    if p then SetEntityCoords(obj, p.x, p.y, p.z, false, false, false, false) end
+    SetEntityCollision(obj, true, true)
+    SetEntityDynamic(obj, true)
+    ActivatePhysics(obj)
+end
+
+local function deleteNetworkNozzle(data)
+    local obj = entityFrom(data.nozzleNet)
+    if obj and takeControl(obj) then DeleteEntity(obj) end
+end
+
+local function wakeTornPump(data)
+    if not data.torn or not data.pumpNet then return end
+    local copy = entityFrom(data.pumpNet)
+    if copy and takeControl(copy) then
+        SetEntityDynamic(copy, true)
+        FreezeEntityPosition(copy, false)
+        ActivatePhysics(copy)
+    end
+end
 local function findPump(data)
     local c = data.pump
     if data.torn and data.pumpNet then
@@ -92,13 +150,14 @@ local function apply(data)
     local me = GetPlayerServerId(PlayerId())
     if data.state == 'holstered' then
         removeRope(data.key)
+        deleteNetworkNozzle(data)
         restorePump(data.key)
         setHolster(data, true)
         if nozzle.heldKey == data.key then nozzle.heldKey = nil end
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'thanks')
         return
     end
-    if not data.torn then restorePump(data.key) end
+    if not data.torn then restorePump(data.key) else wakeTornPump(data) end
     setHolster(data, false)
     if data.state == 'hand' then
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'nozzle_out')
@@ -106,6 +165,9 @@ local function apply(data)
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'return_nozzle')
     end
     if data.state == 'hand' and data.holder == me then nozzle.heldKey = data.key end
+    if data.state == 'hand' then attachToHand(data)
+    elseif data.state == 'car' then attachToVehicle(data)
+    elseif data.state == 'ground' then dropToGround(data) end
     if nozzle.heldKey == data.key and (data.state ~= 'hand' or data.holder ~= me) then nozzle.heldKey = nil end
     if data.snapped then
         removeRope(data.key)
@@ -128,6 +190,14 @@ local function apply(data)
 end
 
 RegisterNetEvent('dante_fuel:nozzleState', apply)
+RegisterNetEvent('dante_fuel:nozzleDenied', function(netId)
+    local obj = entityFrom(netId)
+    if obj and takeControl(obj) then DeleteEntity(obj) end
+end)
+RegisterNetEvent('dante_fuel:forceDropNozzle', function(key, ground)
+    local data = nozzle.states[key]
+    if data then data.ground = ground; dropToGround(data) end
+end)
 AddEventHandler('onClientResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     Wait(1500)
@@ -150,7 +220,29 @@ function nozzle.take(pump)
             break
         end
     end
-    TriggerServerEvent('dante_fuel:takeNozzle', { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) }, GetEntityModel(pump), side, GetPedBoneIndex(cache.ped, 28422))
+    local key = ('%d:%d:%d:%s'):format(math.floor(coords.x*10+0.5), math.floor(coords.y*10+0.5), math.floor(coords.z*10+0.5), side)
+    local existing = nozzle.states[key]
+    local obj = existing and existing.state == 'ground' and entityFrom(existing.nozzleNet)
+    if not obj then
+        obj = CreateObjectNoOffset(NOZZLE, coords.x, coords.y, coords.z + 0.7, true, true, false)
+    end
+    if not obj or obj == 0 then
+        return lib.notify({ type = 'error', description = 'Could not create the fuel nozzle.' })
+    end
+    SetEntityAsMissionEntity(obj, true, true)
+    if not takeControl(obj) then
+        if not existing then DeleteEntity(obj) end
+        return lib.notify({ type = 'error', description = 'Could not take control of the fuel nozzle.' })
+    end
+    if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
+    SetEntityCollision(obj, false, false)
+    AttachEntityToEntity(obj, cache.ped, GetPedBoneIndex(cache.ped, 28422),
+        0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
+    local netId = NetworkGetNetworkIdFromEntity(obj)
+    SetNetworkIdCanMigrate(netId, true)
+    TriggerServerEvent('dante_fuel:takeNozzle',
+        { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) },
+        GetEntityModel(pump), side, netId)
 end
 function nozzle.returnAt(pump)
     if not pump or pump == 0 then return end
@@ -160,6 +252,13 @@ function nozzle.returnAt(pump)
     end
     local coords = GetEntityCoords(pump)
     local side = sideFor(pump)
+    for key, active in pairs(nozzle.states) do
+        if active.state == 'ground'
+            and #(vec3(active.pump.x, active.pump.y, active.pump.z) - coords) <= 1.5 then
+            side = active.side
+            break
+        end
+    end
     local key = ('%d:%d:%d:%s'):format(math.floor(coords.x*10+0.5), math.floor(coords.y*10+0.5), math.floor(coords.z*10+0.5), side)
     TriggerServerEvent('dante_fuel:returnNozzle', key)
 end
@@ -194,7 +293,11 @@ function nozzle.pumpCoordsForVehicle(vehicle)
     if data then return vec3(data.pump.x, data.pump.y, data.pump.z) end
 end
 RegisterCommand('dante_fuel_dropnozzle', function()
-    if nozzle.isHeld() then TriggerServerEvent('dante_fuel:dropNozzle') end
+    if nozzle.isHeld() then
+        local ped = PlayerPedId()
+        local p = GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.8, -0.8)
+        TriggerServerEvent('dante_fuel:dropNozzle', { x=p.x, y=p.y, z=p.z })
+    end
 end, false)
 RegisterKeyMapping('dante_fuel_dropnozzle', 'Drop fuel pump nozzle', 'keyboard', 'g')
 
