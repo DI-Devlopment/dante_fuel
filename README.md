@@ -6,6 +6,7 @@ A standalone FiveM fuel resource built on the **ox_fuel 1.5.4** foundation. Dant
 
 - Vehicle fuel levels and consumption using replicated vehicle state.
 - Refuelling and petrol-can purchases through ox_inventory.
+- Live pay-as-you-pump sessions: funds are reserved when fueling begins, charged per accepted fuel tick, and unused funds are returned when fueling stops.
 - Native FiveM DUI pump displays using the included LCD page.
 - World-space LCD rendering using FiveM native drawing functions.
 - Pump and vehicle interactions through sd-interact.
@@ -53,7 +54,7 @@ Set a fuel level through the state bag:
 Entity(vehicle).state.fuel = 75.0
 ```
 
-The resource retains the upstream `setPaymentMethod` and `setMoneyCheck` integration points.
+The resource retains the upstream `setPaymentMethod` and `setMoneyCheck` integration points. Pump fueling uses a server-managed reservation so players cannot spend the reserved amount during an active session; the final charge is based on accepted fuel ticks, and unused funds are refunded.
 
 ## Project origins and third-party notices
 
