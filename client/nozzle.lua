@@ -150,7 +150,7 @@ function nozzle.take(pump)
             break
         end
     end
-    TriggerServerEvent('dante_fuel:takeNozzle', { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) }, GetEntityModel(pump), side)
+    TriggerServerEvent('dante_fuel:takeNozzle', { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) }, GetEntityModel(pump), side, GetPedBoneIndex(cache.ped, 28422))
 end
 function nozzle.returnAt(pump)
     if not pump or pump == 0 then return end
@@ -165,11 +165,20 @@ function nozzle.returnAt(pump)
 end
 function nozzle.insert(vehicle)
     if not vehicle or vehicle == 0 then return end
-    TriggerServerEvent('dante_fuel:insertNozzle', NetworkGetNetworkIdFromEntity(vehicle))
+    local bone = GetEntityBoneIndexByName(vehicle, 'petrolcap')
+    if bone == -1 then bone = GetEntityBoneIndexByName(vehicle, 'petroltank_l') end
+    if bone == -1 then bone = GetEntityBoneIndexByName(vehicle, 'petroltank') end
+    if bone == -1 then
+        return lib.notify({ type = 'error', description = 'This vehicle has no usable fuel-cap attachment point.' })
+    end
+    local p = GetWorldPositionOfEntityBone(vehicle, bone)
+    local offset = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
+    TriggerServerEvent('dante_fuel:insertNozzle', NetworkGetNetworkIdFromEntity(vehicle),
+        { x=offset.x, y=offset.y, z=offset.z })
 end
 function nozzle.remove(vehicle)
     if not vehicle or vehicle == 0 then return end
-    TriggerServerEvent('dante_fuel:removeNozzle', NetworkGetNetworkIdFromEntity(vehicle))
+    TriggerServerEvent('dante_fuel:removeNozzle', NetworkGetNetworkIdFromEntity(vehicle), GetPedBoneIndex(cache.ped, 28422))
 end
 function nozzle.isHeld()
     return nozzle.heldKey ~= nil
