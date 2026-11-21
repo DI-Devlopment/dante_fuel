@@ -137,7 +137,7 @@ RegisterNetEvent('dante_fuel:insertNozzle', function(netId)
     local p = GetWorldPositionOfEntityBone(vehicle, bone)
     local off = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
     SetEntityCollision(obj, false, false)
-    AttachEntityToEntity(obj, vehicle, bone, off.x, off.y, off.z, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+    AttachEntityToEntity(obj, vehicle, bone, off.x, off.y, off.z, -25.0, 0.0, 180.0, false, false, false, false, 2, true)
     n.state, n.holder, n.vehicle, n.changedAt = 'car', nil, netId, GetGameTimer()
     send(n)
 end)
@@ -242,4 +242,18 @@ end)
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     for _, n in pairs(nozzles) do cleanupPumpCopy(n); deleteNozzle(n) end
+end)
+
+
+-- The live-fueling server accepts pump sessions only when this vehicle has an inserted physical nozzle.
+exports('hasNozzleForVehicle', function(playerId, netId, pumpCoords)
+    if type(netId) ~= 'number' or type(pumpCoords) ~= 'table' then return false end
+    for _, n in pairs(nozzles) do
+        if n.state == 'car' and n.vehicle == netId then
+            local p = coordsOf(n.pump)
+            local requested = coordsOf(pumpCoords)
+            return #(p - requested) <= 1.5
+        end
+    end
+    return false
 end)
