@@ -167,8 +167,9 @@ function nozzle.insert(vehicle)
     if not vehicle or vehicle == 0 then return end
     TriggerServerEvent('dante_fuel:insertNozzle', NetworkGetNetworkIdFromEntity(vehicle))
 end
-function nozzle.remove()
-    TriggerServerEvent('dante_fuel:removeNozzle')
+function nozzle.remove(vehicle)
+    if not vehicle or vehicle == 0 then return end
+    TriggerServerEvent('dante_fuel:removeNozzle', NetworkGetNetworkIdFromEntity(vehicle))
 end
 function nozzle.isHeld()
     return nozzle.heldKey ~= nil
