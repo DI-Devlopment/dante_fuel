@@ -139,10 +139,22 @@ end
 function nozzle.take(pump)
     if not pump or pump == 0 or not DoesEntityExist(pump) then return end
     local coords = GetEntityCoords(pump)
-    TriggerServerEvent('dante_fuel:takeNozzle', { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) }, GetEntityModel(pump), sideFor(pump))
+    local side = sideFor(pump)
+    for _, active in pairs(nozzle.states) do
+        if active.state == 'ground'
+            and #(vec3(active.pump.x, active.pump.y, active.pump.z) - coords) <= 1.5 then
+            side = active.side
+            break
+        end
+    end
+    TriggerServerEvent('dante_fuel:takeNozzle', { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) }, GetEntityModel(pump), side)
 end
 function nozzle.returnAt(pump)
     if not pump or pump == 0 then return end
+    if nozzle.heldKey then
+        TriggerServerEvent('dante_fuel:returnNozzle', nozzle.heldKey)
+        return
+    end
     local coords = GetEntityCoords(pump)
     local side = sideFor(pump)
     local key = ('%d:%d:%d:%s'):format(math.floor(coords.x*10+0.5), math.floor(coords.y*10+0.5), math.floor(coords.z*10+0.5), side)
