@@ -1,7 +1,7 @@
 -- Native FiveM nozzle props and rope hoses. The server replicates nozzle state; each client draws its own rope.
 local screens = require 'client.screens'
 local nozzle = { states = {}, heldKey = nil }
-local ropes, hoseSegments, holsters, hiddenPumps = {}, {}, {}, {}
+local ropes, hoseSegments, holsters, hiddenPumps, groundTargets = {}, {}, {}, {}, {}
 local HOSE_MODEL = joaat('whip_hose_seg')
 local HOSE_MODEL_NS = joaat('whip_hose_seg_ns')
 local HOSE_SEGMENT_LENGTH = 0.25
@@ -126,7 +126,7 @@ local function attachToVehicle(data)
     if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
     SetEntityCollision(obj, false, false)
     local off = data.offset or { x=0.0, y=0.0, z=0.0 }
-    AttachEntityToEntity(obj, vehicle, 0, off.x, off.y, off.z, -25.0, 0.0, 180.0, false, false, false, false, 2, true)
+    AttachEntityToEntity(obj, vehicle, 0, off.x, off.y, off.z, off.pitch or -25.0, 0.0, off.yaw or 180.0, false, false, false, false, 2, true)
 end
 
 local function dropToGround(data)
@@ -140,6 +140,39 @@ local function dropToGround(data)
     ActivatePhysics(obj)
 end
 
+local function removeGroundTarget(data)
+    local obj = data and entityFrom(data.nozzleNet)
+    if obj and groundTargets[obj] then
+        exports['sd-interact']:removeLocalEntity(obj, 'dante_fuel:dropped_nozzle')
+        groundTargets[obj] = nil
+    end
+end
+
+local function addGroundTarget(data)
+    if not data or data.state ~= 'ground' then return end
+    local obj = entityFrom(data.nozzleNet)
+    if not obj or groundTargets[obj] then return end
+    groundTargets[obj] = true
+    exports['sd-interact']:addLocalEntity(obj, {
+        name = 'dante_fuel:dropped_nozzle',
+        interactDistance = 2.0,
+        options = {{
+            name = 'dante_fuel:pickup_dropped_nozzle',
+            label = 'Pick up fuel nozzle',
+            icon = 'fa-solid fa-hand',
+            canInteract = function()
+                local current = nozzle.states[data.key]
+                return current ~= nil and current.state == 'ground'
+                    and current.nozzleNet == data.nozzleNet and not nozzle.isHeld()
+                    and not cache.vehicle and not state.isFueling
+            end,
+            onSelect = function()
+                TriggerServerEvent('dante_fuel:pickupDroppedNozzle', data.key)
+            end,
+        }},
+    })
+end
+
 local function deleteNetworkNozzle(data)
     local obj = entityFrom(data.nozzleNet)
     if obj and takeControl(obj) then DeleteEntity(obj) end
@@ -149,6 +182,8 @@ local function wakeTornPump(data)
     if not data.torn or not data.pumpNet then return end
     local copy = entityFrom(data.pumpNet)
     if copy and takeControl(copy) then
+        SetEntityCollision(copy, true, true)
+        SetEntityHasGravity(copy, true)
         SetEntityDynamic(copy, true)
         FreezeEntityPosition(copy, false)
         ActivatePhysics(copy)
@@ -220,11 +255,11 @@ local function ropeEnds(data)
             local deadline = GetGameTimer() + 2000
             while not RopeAreTexturesLoaded() and GetGameTimer() < deadline do Wait(0) end
         end
-        local rope = AddRope(start.x, start.y, start.z, 0.0, 0.0, 0.0, 4.5, 4, 4.5, 0.1, 1.0, false, false, false, 1.0, false, 0)
+        local rope = AddRope(start.x, start.y, start.z, 0.0, 0.0, 0.0, 3.0, 4, 3.0, 0.1, 1.0, false, false, false, 1.0, false, 0)
         if rope and rope ~= 0 then
             AttachEntitiesToRope(rope, pump, obj, start.x, start.y, start.z,
                 finish.x, finish.y, finish.z, 6.0, false, false, nil, nil)
-            RopeForceLength(rope, 4.5)
+            RopeForceLength(rope, 3.0)
             ropes[data.key] = rope
             CreateThread(function()
                 local deadline = GetGameTimer() + 3000
@@ -241,6 +276,7 @@ end
 local function apply(data)
     if type(data) ~= 'table' or not data.key then return end
     local old = nozzle.states[data.key]
+    if old then removeGroundTarget(old) end
     nozzle.states[data.key] = data
     local me = GetPlayerServerId(PlayerId())
     if data.state == 'holstered' then
@@ -258,6 +294,7 @@ local function apply(data)
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'nozzle_out')
     elseif data.state == 'ground' then
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'return_nozzle')
+        addGroundTarget(data)
     end
     if data.state == 'hand' and data.holder == me then nozzle.heldKey = data.key end
     if data.state == 'hand' then attachToHand(data)
@@ -396,41 +433,69 @@ function nozzle.returnAt(pump)
     local key = ('%d:%d:%d:%s'):format(math.floor(coords.x*10+0.5), math.floor(coords.y*10+0.5), math.floor(coords.z*10+0.5), side)
     TriggerServerEvent('dante_fuel:returnNozzle', key)
 end
-function nozzle.insert(vehicle)
-    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+local NOZZLE_SPOUT = vec3(0.002, 0.241, 0.160)
+local NOZZLE_IN_PITCH = -25.0
+local NOZZLE_IN_DEPTH = 0.04
 
-    local offset
+local function turned(point, pitch, yaw)
+    local p, a = math.rad(pitch), math.rad(yaw)
+    local y1 = point.y * math.cos(p) - point.z * math.sin(p)
+    local z1 = point.y * math.sin(p) + point.z * math.cos(p)
+    return vec3(
+        point.x * math.cos(a) - y1 * math.sin(a),
+        point.x * math.sin(a) + y1 * math.cos(a),
+        z1
+    )
+end
+
+local function getFillerPoint(vehicle)
     local bones = { 'petrolcap', 'petroltank_l', 'petroltank_r', 'petroltank' }
     for i = 1, #bones do
         local bone = GetEntityBoneIndexByName(vehicle, bones[i])
         if bone ~= -1 then
             local p = GetWorldPositionOfEntityBone(vehicle, bone)
             if p and (p.x ~= 0.0 or p.y ~= 0.0 or p.z ~= 0.0) then
-                offset = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
-                break
+                local localPos = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
+                local side = localPos.x < 0.0 and -1.0 or 1.0
+                local heading = GetEntityHeading(vehicle) + (side * 90.0)
+                return p, heading
             end
         end
     end
 
-    -- Some addon and vanilla vehicles (including certain Sultan/Elegy variants)
-    -- do not expose fuel-cap bones. Fall back to the rear quarter on the side
-    -- the player is standing on, using the vehicle's actual model bounds.
-    if not offset then
-        local minDim, maxDim = GetModelDimensions(GetEntityModel(vehicle))
-        local playerPos = GetEntityCoords(cache.ped)
-        local playerLocal = GetOffsetFromEntityGivenWorldCoords(
-            vehicle, playerPos.x, playerPos.y, playerPos.z
-        )
-        local side = playerLocal.x < 0.0 and -1.0 or 1.0
-        offset = vec3(
-            side * math.max(math.abs(minDim.x), math.abs(maxDim.x)) * 0.82,
-            minDim.y * 0.35,
-            minDim.z + (maxDim.z - minDim.z) * 0.48
-        )
-    end
+    local minDim, maxDim = GetModelDimensions(GetEntityModel(vehicle))
+    local playerPos = GetEntityCoords(cache.ped)
+    local playerLocal = GetOffsetFromEntityGivenWorldCoords(vehicle, playerPos.x, playerPos.y, playerPos.z)
+    local side = playerLocal.x < 0.0 and -1.0 or 1.0
+    local localPoint = vec3(
+        side * math.max(math.abs(minDim.x), math.abs(maxDim.x)) * 0.82,
+        minDim.y * 0.35,
+        minDim.z + (maxDim.z - minDim.z) * 0.48
+    )
+    local world = GetOffsetFromEntityInWorldCoords(vehicle, localPoint.x, localPoint.y, localPoint.z)
+    return world, GetEntityHeading(vehicle) + (side * 90.0)
+end
+
+function nozzle.insert(vehicle)
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+    local obj = nozzle.heldKey and entityFrom(nozzle.states[nozzle.heldKey].nozzleNet)
+    if not obj then return end
+
+    local point, heading = getFillerPoint(vehicle)
+    local vehicleHeading = GetEntityHeading(vehicle)
+    local r = math.rad(heading)
+    -- Put the spout tip just through the filler opening, facing inward.
+    local tipWorld = vec3(
+        point.x + math.sin(r) * NOZZLE_IN_DEPTH,
+        point.y - math.cos(r) * NOZZLE_IN_DEPTH,
+        point.z
+    )
+    local tip = GetOffsetFromEntityGivenWorldCoords(vehicle, tipWorld.x, tipWorld.y, tipWorld.z)
+    local yaw = (heading + 180.0 - vehicleHeading) % 360.0
+    local offset = tip - turned(NOZZLE_SPOUT, NOZZLE_IN_PITCH, yaw)
 
     TriggerServerEvent('dante_fuel:insertNozzle', NetworkGetNetworkIdFromEntity(vehicle),
-        { x=offset.x, y=offset.y, z=offset.z })
+        { x=offset.x, y=offset.y, z=offset.z, pitch=NOZZLE_IN_PITCH, yaw=yaw })
 end
 function nozzle.remove(vehicle)
     if not vehicle or vehicle == 0 then return end
@@ -464,6 +529,10 @@ AddEventHandler('onResourceStop', function(resource)
     for key in pairs(holsters) do
         for _, obj in pairs(holsters[key]) do if obj and DoesEntityExist(obj) then DeleteEntity(obj) end end
     end
+    for obj in pairs(groundTargets) do
+        if DoesEntityExist(obj) then exports['sd-interact']:removeLocalEntity(obj, 'dante_fuel:dropped_nozzle') end
+    end
+    groundTargets = {}
     for key in pairs(hiddenPumps) do restorePump(key) end
 end)
 return nozzle

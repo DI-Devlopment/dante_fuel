@@ -101,13 +101,35 @@ RegisterNetEvent('dante_fuel:dropNozzle', function(at)
     send(found)
 end)
 
+RegisterNetEvent('dante_fuel:pickupDroppedNozzle', function(key)
+    local src = source
+    local n = nozzles[key]
+    if not n or n.state ~= 'ground' or not n.ground then return end
+    local ped = GetPlayerPed(src)
+    local obj = entityFrom(n.nozzleNet)
+    if ped == 0 or obj == 0 then return end
+    local playerPos = GetEntityCoords(ped)
+    if #(playerPos - coordsOf(n.ground)) > 2.5
+        or #(GetEntityCoords(obj) - playerPos) > 3.0 then return end
+
+    for _, active in pairs(nozzles) do
+        if active.state == 'hand' and active.holder == src then return end
+    end
+
+    n.state, n.holder, n.vehicle, n.ground, n.offset = 'hand', src, nil, nil, nil
+    n.changedAt = GetGameTimer()
+    send(n)
+end)
+
 RegisterNetEvent('dante_fuel:insertNozzle', function(netId, offset)
     local src = source
     local n
     for _, v in pairs(nozzles) do if v.state == 'hand' and v.holder == src then n = v break end end
     if not n or type(netId) ~= 'number' or type(offset) ~= 'table'
         or type(offset.x) ~= 'number' or type(offset.y) ~= 'number' or type(offset.z) ~= 'number'
-        or math.abs(offset.x) > 5.0 or math.abs(offset.y) > 5.0 or math.abs(offset.z) > 5.0 then return end
+        or math.abs(offset.x) > 5.0 or math.abs(offset.y) > 5.0 or math.abs(offset.z) > 5.0
+        or (offset.pitch ~= nil and type(offset.pitch) ~= 'number')
+        or (offset.yaw ~= nil and type(offset.yaw) ~= 'number') then return end
     local ped = GetPlayerPed(src)
     local vehicle = entityFrom(netId)
     local obj = entityFrom(n.nozzleNet)
