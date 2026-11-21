@@ -48,6 +48,7 @@ local function paymentError(reason)
         not_enough_money = locale('refuel_cannot_afford'),
         vehicle_too_far = locale('vehicle_far'),
         pump_too_far = locale('vehicle_far'),
+        nozzle_required = 'Insert the pump nozzle into the vehicle first.',
     }
     lib.notify({ type = 'error', description = messages[reason] or locale('refuel_cannot_afford') })
 end
