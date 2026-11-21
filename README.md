@@ -35,7 +35,7 @@ No runtime dependency on ox_target, whip_core, whip_fuel, whip_rope, or WorldQua
 
 Edit `config.lua` to configure:
 
-- `sd_interact`: enables the sd-interact interaction backend.
+- `sd-interact` is required and is the only interaction backend.
 - `showBlips`: `0` hides station blips, `1` shows the nearest station, and `2` shows all stations.
 - `refillValue` and `refillTick`: control refuelling speed.
 - `priceTick`: cost charged per accepted live-fueling tick.
