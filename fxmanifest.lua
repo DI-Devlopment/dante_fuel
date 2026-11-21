@@ -23,6 +23,7 @@ shared_scripts {
 server_scripts {
     'server.lua',
     'server/live_fueling.lua',
+    'server/nozzle.lua',
 }
 
 client_script 'client/init.lua'
