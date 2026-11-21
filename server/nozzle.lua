@@ -142,10 +142,11 @@ RegisterNetEvent('dante_fuel:insertNozzle', function(netId)
     send(n)
 end)
 
-RegisterNetEvent('dante_fuel:removeNozzle', function()
+RegisterNetEvent('dante_fuel:removeNozzle', function(netId)
     local src = source
+    if type(netId) ~= 'number' then return end
     for _, n in pairs(nozzles) do
-        if n.state == 'car' and n.holder == nil then
+        if n.state == 'car' and n.holder == nil and n.vehicle == netId then
             local vehicle = n.vehicle and NetworkGetEntityFromNetworkId(n.vehicle)
             local ped = GetPlayerPed(src)
             if ped ~= 0 and vehicle and vehicle ~= 0 and #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) <= 3.0 then
@@ -167,11 +168,12 @@ end)
 RegisterNetEvent('dante_fuel:returnNozzle', function(key)
     local src = source
     local n = nozzles[key]
-    if not n or #(GetEntityCoords(GetPlayerPed(src)) - coordsOf(n.pump)) > 3.5 then return end
+    local ped = GetPlayerPed(src)
+    if ped == 0 or not n or #(GetEntityCoords(ped) - coordsOf(n.pump)) > 3.5 then return end
     if n.state == 'hand' and n.holder ~= src then return end
     if n.state == 'car' then
         local vehicle = n.vehicle and NetworkGetEntityFromNetworkId(n.vehicle)
-        if vehicle and vehicle ~= 0 and #(GetEntityCoords(GetPlayerPed(src)) - GetEntityCoords(vehicle)) > 3.0 then return end
+        if vehicle and vehicle ~= 0 and #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) > 3.0 then return end
     end
     reset(n, 'returned')
 end)
