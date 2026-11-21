@@ -17,8 +17,12 @@ local function validPump(model)
 end
 local function coordsOf(c) return vector3(c.x + 0.0, c.y + 0.0, c.z + 0.0) end
 local function entityFrom(net)
-    if type(net) ~= 'number' or net <= 0 or not NetworkDoesNetworkIdExist(net) then return 0 end
-    return NetworkGetEntityFromNetworkId(net)
+    if type(net) ~= 'number' or net <= 0 then return 0 end
+    -- NetworkDoesNetworkIdExist is not exposed in the server runtime.
+    -- NetworkGetEntityFromNetworkId returns 0 when the ID is not currently known.
+    local entity = NetworkGetEntityFromNetworkId(net)
+    if entity == 0 or not DoesEntityExist(entity) then return 0 end
+    return entity
 end
 local function send(n, target)
     TriggerClientEvent('dante_fuel:nozzleState', target or -1, {
@@ -57,7 +61,7 @@ RegisterNetEvent('dante_fuel:takeNozzle', function(pumpCoords, model, side, netI
     if not validPump(model) then return deny(src, netId) end
     local ped = GetPlayerPed(src)
     local obj = entityFrom(netId)
-    if ped == 0 or obj == 0 or not DoesEntityExist(obj) or GetEntityModel(obj) ~= joaat('prop_cs_fuel_nozle') then
+    if ped == 0 or obj == 0 or GetEntityModel(obj) ~= joaat('prop_cs_fuel_nozle') then
         return deny(src, netId)
     end
     local pump = coordsOf(pumpCoords)
@@ -149,7 +153,7 @@ RegisterNetEvent('dante_fuel:tornPumpCreated', function(key, netId)
     local n = nozzles[key]
     if not n or not n.torn or n.tornOwner ~= src or type(netId) ~= 'number' then return end
     local copy = entityFrom(netId)
-    if copy == 0 or not DoesEntityExist(copy) or GetEntityModel(copy) ~= n.model
+    if copy == 0 or GetEntityModel(copy) ~= n.model
         or #(GetEntityCoords(copy) - coordsOf(n.pump)) > 3.0 then return end
     n.pumpNet = netId
     send(n)
@@ -182,7 +186,7 @@ CreateThread(function()
                 send(n)
             elseif n.state == 'car' and n.vehicle then
                 local vehicle = entityFrom(n.vehicle)
-                if vehicle == 0 or not DoesEntityExist(vehicle) then
+                if vehicle == 0 then
                     reset(n, 'vehicle_gone')
                 elseif #(GetEntityCoords(vehicle) - coordsOf(n.pump)) > 5.0 and not n.snapped and not n.torn then
                     -- Older pumps snap the hose. Modern pumps get a replicated loose pump copy.
@@ -220,7 +224,7 @@ AddEventHandler('onResourceStop', function(resource)
     for _, n in pairs(nozzles) do
         cleanupPumpCopy(n)
         local obj = entityFrom(n.nozzleNet)
-        if obj ~= 0 and DoesEntityExist(obj) then DeleteEntity(obj) end
+        if obj ~= 0 then DeleteEntity(obj) end
     end
 end)
 
