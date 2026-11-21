@@ -7,7 +7,7 @@ if config.showBlips == 2 then
 	for station in pairs(stations) do utils.createBlip(station) end
 end
 
-if config.ox_target and config.showBlips ~= 1 then return end
+if config.sd_interact and config.showBlips ~= 1 then return end
 
 ---@param point CPoint
 local function onEnterStation(point)
@@ -34,9 +34,9 @@ local function nearbyStation(point)
 				local playerCoords = GetEntityCoords(cache.ped)
 				pumpDistance = #(GetEntityCoords(cache.ped) - pump)
 
-				if cache.vehicle then
+				if not config.sd_interact and cache.vehicle then
 					DisplayHelpTextThisFrame('fuelLeaveVehicleText', false)
-				elseif not state.isFueling then
+				elseif not config.sd_interact and not state.isFueling then
 					local vehicleInRange = state.lastVehicle ~= 0 and
 						#(GetEntityCoords(state.lastVehicle) - playerCoords) <= 3
 

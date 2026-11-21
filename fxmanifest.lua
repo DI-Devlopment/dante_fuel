@@ -4,14 +4,15 @@ lua54 'yes'
 game 'gta5'
 
 name 'ox_fuel'
-author 'Overextended'
+author 'Dante Fuel contributors'
 version '1.5.4'
-repository 'https://github.com/overextended/ox_fuel'
-description 'Fuel management system with ox_inventory support'
+repository 'https://github.com/DI-Devlopment/dante_fuel'
+description 'Fuel management with native pump displays and sd-interact support'
 
 dependencies {
 	'ox_lib',
 	'ox_inventory',
+	'sd-interact',
 }
 
 shared_scripts {

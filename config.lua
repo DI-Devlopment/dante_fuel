@@ -6,7 +6,7 @@ return {
 	versionCheck = true,
 
 	-- Enable support for ox_target
-	ox_target = true,
+	sd_interact = true,
 
 	/*
 	* Show or hide gas stations blips
