@@ -82,11 +82,14 @@ RegisterNetEvent('dante_fuel:takeNozzle', function(pumpCoords, model, side)
     if #(GetEntityCoords(ped) - pump) > 3.5 then return end
     local key = keyFor(pumpCoords, side)
     local n = nozzles[key]
+    for _, active in pairs(nozzles) do
+        if active.state == 'hand' and active.holder == src and active.key ~= key then return end
+    end
     if n and n.state ~= 'holstered' and n.state ~= 'ground' then return end
     if n and n.state == 'ground' and #(GetEntityCoords(ped) - pump) > 3.0 then return end
 
     if not n then
-        n = { key = key, pump = { x = pump.x, y = pump.y, z = pump.z }, model = model, side = side }
+        n = { key = key, pump = { x = pump.x, y = pump.y, z = pump.z }, model = model, side = side, heading = tonumber(pumpCoords.heading) or 0.0 }
         nozzles[key] = n
     end
     if not n.nozzleNet or not NetworkGetEntityFromNetworkId(n.nozzleNet) or NetworkGetEntityFromNetworkId(n.nozzleNet) == 0 then
@@ -207,12 +210,15 @@ CreateThread(function()
                     if MODERN[n.model] then
                         local copy = CreateObjectNoOffset(n.model, n.pump.x, n.pump.y, n.pump.z, true, true, false)
                         if copy and copy ~= 0 then
-                            SetEntityHeading(copy, GetEntityHeading(vehicle))
+                            SetEntityHeading(copy, n.heading or 0.0)
                             SetEntityDynamic(copy, true)
                             FreezeEntityPosition(copy, false)
                             n.pumpNet = NetworkGetNetworkIdFromEntity(copy)
                             n.torn = true
                             n.changedAt = now
+                            send(n)
+                        else
+                            n.snapped = true
                             send(n)
                         end
                     else
