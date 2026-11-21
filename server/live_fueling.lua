@@ -60,7 +60,7 @@ lib.callback.register('dante_fuel:beginLiveFuel', function(source, netId, pumpCo
         return false, 'pump_too_far'
     end
 
-    local startFuel = tonumber(Entity(vehicle).state.fuel) or GetVehicleFuelLevel(vehicle)
+    local startFuel = tonumber(Entity(vehicle).state.fuel) or 0.0
     local needed = maxTicks * config.priceTick
     local available = inventory:GetItemCount(source, 'money')
     local reserved = math.min(needed, available)
