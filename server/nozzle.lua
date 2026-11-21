@@ -182,7 +182,7 @@ CreateThread(function()
                 local vehicle = entityFrom(n.vehicle)
                 if vehicle == 0 or not DoesEntityExist(vehicle) then
                     reset(n, 'vehicle_gone')
-                elseif #(GetEntityCoords(vehicle) - coordsOf(n.pump)) > 5.0 and not n.snapped then
+                elseif #(GetEntityCoords(vehicle) - coordsOf(n.pump)) > 5.0 and not n.snapped and not n.torn then
                     -- Older pumps snap the hose. Modern pumps get a replicated loose pump copy.
                     if MODERN[n.model] then
                         local owner = NetworkGetEntityOwner(vehicle)
