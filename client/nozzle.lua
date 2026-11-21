@@ -304,15 +304,38 @@ function nozzle.returnAt(pump)
     TriggerServerEvent('dante_fuel:returnNozzle', key)
 end
 function nozzle.insert(vehicle)
-    if not vehicle or vehicle == 0 then return end
-    local bone = GetEntityBoneIndexByName(vehicle, 'petrolcap')
-    if bone == -1 then bone = GetEntityBoneIndexByName(vehicle, 'petroltank_l') end
-    if bone == -1 then bone = GetEntityBoneIndexByName(vehicle, 'petroltank') end
-    if bone == -1 then
-        return lib.notify({ type = 'error', description = 'This vehicle has no usable fuel-cap attachment point.' })
+    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
+
+    local offset
+    local bones = { 'petrolcap', 'petroltank_l', 'petroltank_r', 'petroltank' }
+    for i = 1, #bones do
+        local bone = GetEntityBoneIndexByName(vehicle, bones[i])
+        if bone ~= -1 then
+            local p = GetWorldPositionOfEntityBone(vehicle, bone)
+            if p and (p.x ~= 0.0 or p.y ~= 0.0 or p.z ~= 0.0) then
+                offset = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
+                break
+            end
+        end
     end
-    local p = GetWorldPositionOfEntityBone(vehicle, bone)
-    local offset = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
+
+    -- Some addon and vanilla vehicles (including certain Sultan/Elegy variants)
+    -- do not expose fuel-cap bones. Fall back to the rear quarter on the side
+    -- the player is standing on, using the vehicle's actual model bounds.
+    if not offset then
+        local minDim, maxDim = GetModelDimensions(GetEntityModel(vehicle))
+        local playerPos = GetEntityCoords(cache.ped)
+        local playerLocal = GetOffsetFromEntityGivenWorldCoords(
+            vehicle, playerPos.x, playerPos.y, playerPos.z
+        )
+        local side = playerLocal.x < 0.0 and -1.0 or 1.0
+        offset = vec3(
+            side * math.max(math.abs(minDim.x), math.abs(maxDim.x)) * 0.82,
+            minDim.y * 0.35,
+            minDim.z + (maxDim.z - minDim.z) * 0.48
+        )
+    end
+
     TriggerServerEvent('dante_fuel:insertNozzle', NetworkGetNetworkIdFromEntity(vehicle),
         { x=offset.x, y=offset.y, z=offset.z })
 end
