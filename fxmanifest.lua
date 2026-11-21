@@ -5,9 +5,9 @@ game 'gta5'
 
 name 'dante_fuel'
 author 'Dante Fuel contributors'
-version '1.6.0'
+version '1.6.1'
 repository 'https://github.com/DI-Devlopment/dante_fuel'
-description 'Fuel management with physical pump interactions and native hose support'
+description 'Fuel management with native pump displays and sd-interact support'
 
 dependencies {
     'ox_lib',
