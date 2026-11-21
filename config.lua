@@ -5,9 +5,6 @@ return {
 	-- Get notified when a new version releases
 	versionCheck = true,
 
-	-- Use sd-interact for pump and vehicle interactions
-	sd_interact = true,
-
 	-- Show or hide gas station blips:
 	-- 0 = hide all, 1 = show nearest, 2 = show all
 	showBlips = 2,
