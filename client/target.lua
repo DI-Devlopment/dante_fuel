@@ -66,8 +66,9 @@ exports['sd-interact']:addGlobalVehicle({
             label = locale('start_fueling'),
             icon = 'fa-solid fa-gas-pump',
             canInteract = function(entity)
-                local key = nozzle.forVehicle(entity)
-                return key ~= nil and not state.isFueling and not cache.vehicle and not lib.progressActive()
+                local key, data = nozzle.forVehicle(entity)
+                return key ~= nil and not data.torn and not data.snapped
+                    and not state.isFueling and not cache.vehicle and not lib.progressActive()
             end,
             onSelect = function(data)
                 local pumpCoords = nozzle.pumpCoordsForVehicle(data.entity)

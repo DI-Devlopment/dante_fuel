@@ -259,7 +259,7 @@ exports('hasNozzleForVehicle', function(playerId, netId, pumpCoords)
     if type(netId) ~= 'number' or type(pumpCoords) ~= 'table'
         or type(pumpCoords.x) ~= 'number' or type(pumpCoords.y) ~= 'number' or type(pumpCoords.z) ~= 'number' then return false end
     for _, n in pairs(nozzles) do
-        if n.state == 'car' and n.vehicle == netId then
+        if n.state == 'car' and n.vehicle == netId and not n.torn and not n.snapped then
             return #(coordsOf(n.pump) - coordsOf(pumpCoords)) <= 1.5
         end
     end
