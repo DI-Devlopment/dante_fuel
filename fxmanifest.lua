@@ -3,37 +3,38 @@ use_experimental_fxv2_oal 'yes'
 lua54 'yes'
 game 'gta5'
 
-name 'ox_fuel'
+name 'dante_fuel'
 author 'Dante Fuel contributors'
-version '1.5.4'
+version '1.6.0'
 repository 'https://github.com/DI-Devlopment/dante_fuel'
-description 'Fuel management with native pump displays and sd-interact support'
+description 'Fuel management with physical pump interactions and native hose support'
 
 dependencies {
-	'ox_lib',
-	'ox_inventory',
-	'sd-interact',
+    'ox_lib',
+    'ox_inventory',
+    'sd-interact',
 }
 
 shared_scripts {
-	'@ox_lib/init.lua',
-	'config.lua'
+    '@ox_lib/init.lua',
+    'config.lua'
 }
 
 server_scripts {
-	'server.lua'
+    'server.lua',
+    'server/live_fueling.lua',
 }
 
 client_script 'client/init.lua'
 
 files {
-	'html/pump3d/*.html',
-	'locales/*.json',
-	'data/stations.lua',
-	'client/*.lua',
+    'html/pump3d/*.html',
+    'locales/*.json',
+    'data/stations.lua',
+    'client/*.lua',
 }
 
 ox_libs {
-	'math',
-	'locale',
+    'math',
+    'locale',
 }
