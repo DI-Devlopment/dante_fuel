@@ -181,6 +181,7 @@ local function apply(data)
             local p = findPump(data)
             local o = entityFrom(data.nozzleNet)
             if p and p ~= 0 and o then
+                wakeTornPump(data)
                 ropeEnds(data)
                 return
             end
