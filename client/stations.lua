@@ -7,7 +7,7 @@ if config.showBlips == 2 then
 	for station in pairs(stations) do utils.createBlip(station) end
 end
 
-if config.ox_target and config.showBlips ~= 1 then return end
+if config.sd_interact and config.showBlips ~= 1 then return end
 
 ---@param point CPoint
 local function onEnterStation(point)
