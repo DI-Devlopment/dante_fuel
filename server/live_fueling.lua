@@ -12,17 +12,13 @@ local function getEntity(netId)
 end
 
 local function validSessionPlayer(source, session)
-    local ped = GetPlayerPed(source)
-    local vehicle = getEntity(session.netId)
+    local ped, vehicle = GetPlayerPed(source), getEntity(session.netId)
     if ped == 0 or vehicle == 0 or GetEntityType(vehicle) ~= 2 then return false end
-
     if not exports[GetCurrentResourceName()]:hasNozzleForVehicle(
         source, session.netId,
         { x = session.pump.x, y = session.pump.y, z = session.pump.z }
     ) then return false end
-
-    local playerCoords = GetEntityCoords(ped)
-    local vehicleCoords = GetEntityCoords(vehicle)
+    local playerCoords, vehicleCoords = GetEntityCoords(ped), GetEntityCoords(vehicle)
     return #(playerCoords - vehicleCoords) <= 5.0
         and #(playerCoords - session.pump) <= 8.0
         and #(vehicleCoords - session.pump) <= 12.0
@@ -32,11 +28,15 @@ local function closeSession(source, session)
     if not session or sessions[source] ~= session then return false, 'invalid_session' end
     sessions[source] = nil
 
-    local ticks = session.consumed
-    local charge = ticks * config.priceTick
-    if ticks == 0 then return true, nil, session.startFuel end
+    local vehicle = getEntity(session.netId)
+    if session.consumed > 0 and (vehicle == 0 or GetEntityType(vehicle) ~= 2) then
+        return false, 'vehicle_missing'
+    end
 
-    -- Uses the ox_fuel payment hook, so custom bank/framework payment methods still work.
+    local charge = session.consumed * config.priceTick
+    if session.consumed == 0 then return true, nil, session.startFuel end
+
+    -- Uses ox_fuel's payment hook, preserving custom bank/framework payment methods.
     if not exports[GetCurrentResourceName()]:chargeFuel(source, charge) then
         TriggerClientEvent('ox_lib:notify', source, {
             type = 'error',
@@ -45,17 +45,12 @@ local function closeSession(source, session)
         return false, 'payment_failed'
     end
 
-    local vehicle = getEntity(session.netId)
-    local finalFuel = math.min(100.0, session.startFuel + ticks * config.refillValue)
-    if vehicle ~= 0 and GetEntityType(vehicle) == 2 then
-        Entity(vehicle).state:set('fuel', finalFuel, true)
-    end
-
+    local finalFuel = math.min(100.0, session.startFuel + session.consumed * config.refillValue)
+    Entity(vehicle).state:set('fuel', finalFuel, true)
     TriggerClientEvent('ox_lib:notify', source, {
         type = 'success',
         description = locale('fuel_success', math.floor(finalFuel), charge)
     })
-
     return true, nil, finalFuel
 end
 
@@ -64,50 +59,46 @@ lib.callback.register('dante_fuel:beginLiveFuel', function(source, netId, pumpCo
     if type(netId) ~= 'number' or type(maxTicks) ~= 'number' or maxTicks < 1
         or type(pumpCoords) ~= 'table'
         or type(pumpCoords.x) ~= 'number' or type(pumpCoords.y) ~= 'number'
-        or type(pumpCoords.z) ~= 'number' then
-        return false, 'invalid_request'
-    end
+        or type(pumpCoords.z) ~= 'number' then return false, 'invalid_request' end
 
-    maxTicks = math.floor(math.min(maxTicks, 500))
-    local ped = GetPlayerPed(source)
-    local vehicle = getEntity(netId)
+    local ped, vehicle = GetPlayerPed(source), getEntity(netId)
     if ped == 0 or vehicle == 0 or GetEntityType(vehicle) ~= 2 then return false, 'vehicle_missing' end
-
     local pump = vector3(pumpCoords.x, pumpCoords.y, pumpCoords.z)
-    if #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) > 5.0
-        or #(GetEntityCoords(ped) - pump) > 8.0
-        or #(GetEntityCoords(vehicle) - pump) > 12.0 then
-        return false, 'pump_too_far'
-    end
-
+    local playerCoords, vehicleCoords = GetEntityCoords(ped), GetEntityCoords(vehicle)
+    if #(playerCoords - vehicleCoords) > 5.0 or #(playerCoords - pump) > 8.0
+        or #(vehicleCoords - pump) > 12.0 then return false, 'pump_too_far' end
     if not exports[GetCurrentResourceName()]:hasNozzleForVehicle(source, netId, pumpCoords) then
         return false, 'nozzle_required'
     end
 
-    local startFuel = tonumber(Entity(vehicle).state.fuel) or GetVehicleFuelLevel(vehicle)
+    local startFuel = math.max(0.0, math.min(100.0,
+        tonumber(Entity(vehicle).state.fuel) or GetVehicleFuelLevel(vehicle)))
+    local tankTicks = math.ceil((100.0 - startFuel) / config.refillValue)
+    maxTicks = math.floor(math.min(maxTicks, tankTicks, 500))
+    if maxTicks < 1 then return false, 'tank_full' end
+
     serial = serial + 1
     local session = {
         id = ('%s:%s:%s'):format(source, GetGameTimer(), serial),
         netId = netId,
         pump = pump,
-        startFuel = math.max(0.0, math.min(100.0, startFuel)),
+        startFuel = startFuel,
         allowedTicks = maxTicks,
         consumed = 0,
         lastTick = GetGameTimer() - config.refillTick,
     }
     sessions[source] = session
-
     return { id = session.id, allowedTicks = maxTicks }
 end)
 
 lib.callback.register('dante_fuel:acceptLiveFuelTick', function(source, sessionId)
     local session = sessions[source]
-    if not session or session.id ~= sessionId or session.consumed >= session.allowedTicks then return false end
-
+    if not session or session.id ~= sessionId or session.consumed >= session.allowedTicks then
+        return false
+    end
     local now = GetGameTimer()
     if now - session.lastTick < math.floor(config.refillTick * 0.9) then return false end
     if not validSessionPlayer(source, session) then return false end
-
     session.consumed = session.consumed + 1
     session.lastTick = now
     return true, session.consumed
