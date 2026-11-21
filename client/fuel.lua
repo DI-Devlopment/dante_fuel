@@ -48,6 +48,7 @@ local function paymentError(reason)
         not_enough_money = locale('refuel_cannot_afford'),
         vehicle_too_far = locale('vehicle_far'),
         pump_too_far = locale('vehicle_far'),
+        nozzle_required = 'Insert the pump nozzle into the vehicle first.',
     }
     lib.notify({ type = 'error', description = messages[reason] or locale('refuel_cannot_afford') })
 end
@@ -107,13 +108,6 @@ function fuel.startFueling(vehicle, isPump, pumpCoords)
                 dict = isPump and 'timetable@gardener@filling_can' or 'weapon@w_sp_jerrycan',
                 clip = isPump and 'gar_ig_5_filling_can' or 'fire',
             },
-            prop = isPump and {
-                model = 'prop_cs_fuel_nozle',
-                bone = 18905,
-                pos = vec3(0.1, 0.02, 0.02),
-                rot = vec3(90.0, 40.0, 170.0),
-                rotOrder = 1,
-            } or nil,
         })
         progressFinished = true
         state.isFueling = false
