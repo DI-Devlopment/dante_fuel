@@ -28,7 +28,9 @@ local function send(n, target)
     TriggerClientEvent('dante_fuel:nozzleState', target or -1, {
         key=n.key, pump=n.pump, model=n.model, side=n.side, state=n.state,
         holder=n.holder, vehicle=n.vehicle, offset=n.offset, nozzleNet=n.nozzleNet, ground=n.ground,
-        torn=n.torn, tornOwner=n.tornOwner, tornModel=n.tornModel, pumpNet=n.pumpNet, snapped=n.snapped,
+        torn=n.torn, tornOwner=n.tornOwner, tornModel=n.tornModel,
+        tornElapsed=n.tornAt and math.max(0, GetGameTimer() - n.tornAt) or 0,
+        pumpNet=n.pumpNet, snapped=n.snapped,
     })
 end
 local function cleanupPumpCopy(n)
@@ -36,7 +38,7 @@ local function cleanupPumpCopy(n)
         local e = entityFrom(n.pumpNet)
         if e ~= 0 and DoesEntityExist(e) then DeleteEntity(e) end
     end
-    n.pumpNet, n.torn, n.tornOwner, n.tornModel = nil, false, nil, nil
+    n.pumpNet, n.torn, n.tornOwner, n.tornModel, n.tornAt = nil, false, nil, nil, nil
 end
 local function reset(n, reason)
     cleanupPumpCopy(n)
@@ -205,7 +207,7 @@ CreateThread(function()
             elseif n.state == 'ground' and now - n.changedAt >= 30000 then
                 reset(n, 'timeout')
             elseif n.state == 'car' and n.torn and not n.pumpNet and now - (n.changedAt or now) > 5000 then
-                n.torn, n.tornOwner, n.tornModel, n.snapped = false, nil, nil, true
+                n.torn, n.tornOwner, n.tornModel, n.tornAt, n.snapped = false, nil, nil, nil, true
                 send(n)
             elseif n.state == 'car' and n.vehicle then
                 local vehicle = entityFrom(n.vehicle)
@@ -218,6 +220,7 @@ CreateThread(function()
                         if owner and owner > 0 then
                             n.torn, n.tornOwner = true, owner
                             n.tornModel = config.tornPumpModels[n.model] or n.model
+                            n.tornAt = now
                             n.changedAt = now
                             send(n)
                             TriggerClientEvent('dante_fuel:createTornPump', owner, n.key, n.pump, n.tornModel, n.heading or 0.0)
