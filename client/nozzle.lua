@@ -1,10 +1,8 @@
 -- Native FiveM nozzle props and rope hoses. The server replicates nozzle state; each client draws its own rope.
-local config = require 'config'
 local screens = require 'client.screens'
 local nozzle = { states = {}, heldKey = nil }
 local ropes, holsters, hiddenPumps = {}, {}, {}
 local NOZZLE = joaat('prop_cs_fuel_nozle')
-local HAND = 28422
 local HOLSTER = {
     A = { pos = vec3(0.3447, -0.3744, 0.7044), rot = vec3(0.251, -0.076, 0.066) },
     B = { pos = vec3(-0.3447, 0.3655, 0.7044), rot = vec3(0.259, -0.077, -179.934) },
@@ -73,7 +71,11 @@ local function ropeEnds(data)
     local start = GetOffsetFromEntityInWorldCoords(pump, at.x, at.y, at.z)
     local finish = GetOffsetFromEntityInWorldCoords(obj, 0.0, -0.027, -0.200)
     if not ropes[data.key] then
-        if not RopeAreTexturesLoaded() then RopeLoadTextures() end
+        if not RopeAreTexturesLoaded() then
+            RopeLoadTextures()
+            local deadline = GetGameTimer() + 2000
+            while not RopeAreTexturesLoaded() and GetGameTimer() < deadline do Wait(0) end
+        end
         local rope = AddRope(start.x, start.y, start.z, 0.0, 0.0, 0.0, 6.0, 4, 6.0, 0.1, 1.0, false, false, false, 1.0, false, 0)
         if rope and rope ~= 0 then
             AttachEntitiesToRope(rope, pump, obj, start.x, start.y, start.z,
@@ -96,6 +98,7 @@ local function apply(data)
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'thanks')
         return
     end
+    if not data.torn then restorePump(data.key) end
     setHolster(data, false)
     if data.state == 'hand' then
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'nozzle_out')
