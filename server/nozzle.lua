@@ -23,7 +23,7 @@ end
 local function send(n, target)
     TriggerClientEvent('dante_fuel:nozzleState', target or -1, {
         key=n.key, pump=n.pump, model=n.model, side=n.side, state=n.state,
-        holder=n.holder, vehicle=n.vehicle, nozzleNet=n.nozzleNet, ground=n.ground,
+        holder=n.holder, vehicle=n.vehicle, offset=n.offset, nozzleNet=n.nozzleNet, ground=n.ground,
         torn=n.torn, pumpNet=n.pumpNet, snapped=n.snapped,
     })
 end
