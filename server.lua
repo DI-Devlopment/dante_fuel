@@ -113,3 +113,9 @@ RegisterNetEvent('ox_fuel:setFuel', function(fuel)
 
 	setFuelState(handle, fuel, true)
 end)
+
+-- Shared payment entry point for server-side pump sessions.
+-- This preserves integrations registered through setPaymentMethod.
+exports('chargeFuel', function(playerId, price)
+	return payMoney(playerId, price)
+end)
