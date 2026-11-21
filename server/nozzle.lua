@@ -41,6 +41,7 @@ local function reset(n, reason)
     send(n)
     n.nozzleNet = nil
     n.ground = nil
+    n.offset = nil
     TriggerEvent('dante_fuel:nozzleReturned', n.key, reason)
 end
 local function deny(src, netId)
@@ -74,7 +75,7 @@ RegisterNetEvent('dante_fuel:takeNozzle', function(pumpCoords, model, side, netI
             heading=tonumber(pumpCoords.heading) or 0.0 }
         nozzles[key] = n
     end
-    n.nozzleNet, n.state, n.holder, n.vehicle = netId, 'hand', src, nil
+    n.nozzleNet, n.state, n.holder, n.vehicle, n.ground, n.offset = netId, 'hand', src, nil, nil, nil
     n.changedAt = GetGameTimer()
     send(n)
 end)
@@ -87,7 +88,7 @@ RegisterNetEvent('dante_fuel:dropNozzle', function(at)
     if ped == 0 then return end
     local p = GetEntityCoords(ped)
     local drop = type(at) == 'table' and coordsOf(at) or p
-    if #(drop - p) > 3.0 then drop = GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.8, -0.8) end
+    if #(drop - p) > 3.0 then drop = p end
     found.state, found.holder, found.vehicle = 'ground', nil, nil
     found.ground = {x=drop.x,y=drop.y,z=drop.z}
     found.changedAt = GetGameTimer()
@@ -107,7 +108,7 @@ RegisterNetEvent('dante_fuel:insertNozzle', function(netId, offset)
     if ped == 0 or vehicle == 0 or obj == 0 or GetEntityType(vehicle) ~= 2 then return end
     if #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) > 3.5
         or #(GetEntityCoords(vehicle) - coordsOf(n.pump)) > 8.0 then return end
-    n.state, n.holder, n.vehicle, n.offset = 'car', nil, netId, offset
+    n.state, n.holder, n.vehicle, n.offset, n.ground = 'car', nil, netId, offset, nil
     n.changedAt = GetGameTimer()
     send(n)
 end)
@@ -174,6 +175,9 @@ CreateThread(function()
                 end
             elseif n.state == 'ground' and now - n.changedAt >= 30000 then
                 reset(n, 'timeout')
+            elseif n.state == 'car' and n.torn and not n.pumpNet and now - (n.changedAt or now) > 5000 then
+                n.torn, n.tornOwner, n.snapped = false, nil, true
+                send(n)
             elseif n.state == 'car' and n.vehicle then
                 local vehicle = entityFrom(n.vehicle)
                 if vehicle == 0 or not DoesEntityExist(vehicle) then
