@@ -206,7 +206,17 @@ RegisterNetEvent('dante_fuel:createTornPump', function(key, pump, model, heading
     SetEntityHeading(obj, heading or 0.0)
     FreezeEntityPosition(obj, true)
     local netId = NetworkGetNetworkIdFromEntity(obj)
+    local networkDeadline = GetGameTimer() + 1500
+    while (not NetworkGetEntityIsNetworked(obj) or netId == 0) and GetGameTimer() < networkDeadline do
+        Wait(0)
+        netId = NetworkGetNetworkIdFromEntity(obj)
+    end
+    if not NetworkGetEntityIsNetworked(obj) or netId == 0 then
+        DeleteEntity(obj)
+        return
+    end
     SetNetworkIdCanMigrate(netId, true)
+    Wait(100)
     TriggerServerEvent('dante_fuel:tornPumpCreated', key, netId)
 end)
 
@@ -260,7 +270,17 @@ function nozzle.take(pump)
     AttachEntityToEntity(obj, cache.ped, GetPedBoneIndex(cache.ped, 28422),
         0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
     local netId = NetworkGetNetworkIdFromEntity(obj)
+    local networkDeadline = GetGameTimer() + 1500
+    while (not NetworkGetEntityIsNetworked(obj) or netId == 0) and GetGameTimer() < networkDeadline do
+        Wait(0)
+        netId = NetworkGetNetworkIdFromEntity(obj)
+    end
+    if not NetworkGetEntityIsNetworked(obj) or netId == 0 then
+        DeleteEntity(obj)
+        return lib.notify({ type = 'error', description = 'The fuel nozzle could not be networked.' })
+    end
     SetNetworkIdCanMigrate(netId, true)
+    Wait(100)
     TriggerServerEvent('dante_fuel:takeNozzle',
         { x=coords.x, y=coords.y, z=coords.z, heading=GetEntityHeading(pump) },
         GetEntityModel(pump), side, netId)
