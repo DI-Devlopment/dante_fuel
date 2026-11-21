@@ -121,6 +121,22 @@ local function findPump(coords)
     end
 end
 
+local function findNearestPump(coords)
+    if not coords then return nil end
+    local nearest, brand, nearestDistance
+    for i = 1, #PUMP_MODELS do
+        local model = PUMP_MODELS[i]
+        local entity = GetClosestObjectOfType(coords.x, coords.y, coords.z, SCREEN_RANGE, model.hash, false, false, false)
+        if entity and entity ~= 0 and DoesEntityExist(entity) then
+            local distance = #(GetEntityCoords(entity) - coords)
+            if not nearestDistance or distance < nearestDistance then
+                nearest, brand, nearestDistance = entity, model.brand, distance
+            end
+        end
+    end
+    return nearest, brand
+end
+
 local function screenQuad(pump, side)
     local at = SCREEN_AT[side]
     local forward, right, up, position = GetEntityMatrix(pump)
@@ -166,29 +182,46 @@ local function startDrawLoop()
     drawing = true
 
     CreateThread(function()
-        while activePump do
-            if not DoesEntityExist(activePump) then
-                activePump = nil
-                            break
-            end
+        while true do
+            local playerCoords = GetEntityCoords(PlayerPedId())
 
-            local distance = #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(activePump))
-            if distance <= SCREEN_RANGE and screenUp then
-                drawScreen(activePump, 'A', 1)
-                drawScreen(activePump, 'B', 2)
-                Wait(0)
-            else
-                Wait(200)
+            if activePump and not DoesEntityExist(activePump) then
+                activePump = nil
+                thanksAt = nil
             end
 
             if thanksAt and GetGameTimer() - thanksAt >= SCREEN_THANKS_MS then
                 activePump = nil
-                            thanksAt = nil
+                thanksAt = nil
+                activeMessage = { state = 'idle' }
                 screenWantedAt = GetGameTimer()
-                break
+            end
+
+            -- Keep nearby pump displays in Whip's idle state before a nozzle is taken.
+            if not activePump then
+                local pump, brand = findNearestPump(playerCoords)
+                if pump then
+                    activePump = pump
+                    activeBrand = brand or 'RON'
+                    activeMessage = { state = 'idle' }
+                    ensureDui()
+                    sendCurrentState()
+                end
+            end
+
+            if activePump then
+                local distance = #(playerCoords - GetEntityCoords(activePump))
+                if distance <= SCREEN_RANGE and screenUp then
+                    drawScreen(activePump, 'A', 1)
+                    drawScreen(activePump, 'B', 2)
+                    Wait(0)
+                else
+                    Wait(200)
+                end
+            else
+                Wait(500)
             end
         end
-        drawing = false
     end)
 end
 

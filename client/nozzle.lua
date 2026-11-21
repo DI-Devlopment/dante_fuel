@@ -118,7 +118,8 @@ local function attachToHand(data)
     local bone = GetPedBoneIndex(ped, 28422)
     if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
     SetEntityCollision(obj, false, false)
-    AttachEntityToEntity(obj, ped, bone, 0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
+    -- Whip's nozzle is held by the right hand; keep its spout aligned with the forearm.
+    AttachEntityToEntity(obj, ped, bone, 0.13, 0.04, 0.0, -90.0, 0.0, 0.0, false, false, false, false, 2, true)
 end
 
 local function attachToVehicle(data)
@@ -408,7 +409,7 @@ function nozzle.take(pump)
     if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
     SetEntityCollision(obj, false, false)
     AttachEntityToEntity(obj, cache.ped, GetPedBoneIndex(cache.ped, 28422),
-        0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
+        0.13, 0.04, 0.0, -90.0, 0.0, 0.0, false, false, false, false, 2, true)
     local netId = NetworkGetNetworkIdFromEntity(obj)
     local networkDeadline = GetGameTimer() + 1500
     while (not NetworkGetEntityIsNetworked(obj) or netId == 0) and GetGameTimer() < networkDeadline do
@@ -488,7 +489,8 @@ end
 
 function nozzle.insert(vehicle)
     if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return end
-    local obj = nozzle.heldKey and entityFrom(nozzle.states[nozzle.heldKey].nozzleNet)
+    local held = nozzle.heldKey and nozzle.states[nozzle.heldKey]
+    local obj = held and held.state == 'hand' and entityFrom(held.nozzleNet)
     if not obj then return end
 
     local point, heading = getFillerPoint(vehicle)
@@ -512,7 +514,29 @@ function nozzle.remove(vehicle)
     TriggerServerEvent('dante_fuel:removeNozzle', NetworkGetNetworkIdFromEntity(vehicle), GetPedBoneIndex(cache.ped, 28422))
 end
 function nozzle.isHeld()
-    return nozzle.heldKey ~= nil
+    local data = nozzle.heldKey and nozzle.states[nozzle.heldKey]
+    return data ~= nil and data.state == 'hand'
+        and data.holder == GetPlayerServerId(PlayerId())
+end
+
+local function samePump(data, pump)
+    if not data or not data.pump or not pump or pump == 0 or not DoesEntityExist(pump) then return false end
+    local p = GetEntityCoords(pump)
+    return #(vec3(data.pump.x, data.pump.y, data.pump.z) - p) <= 1.5
+end
+
+-- A pump side is occupied whenever its nozzle is out, on the ground, or in a vehicle.
+function nozzle.hasNozzleAt(pump)
+    for _, data in pairs(nozzle.states) do
+        if data.state ~= 'holstered' and samePump(data, pump) then return true end
+    end
+    return false
+end
+
+-- Return belongs only to the pump whose nozzle the player is actually holding.
+function nozzle.isHeldAt(pump)
+    local data = nozzle.heldKey and nozzle.states[nozzle.heldKey]
+    return nozzle.isHeld() and samePump(data, pump)
 end
 function nozzle.forVehicle(vehicle)
     local net = NetworkGetNetworkIdFromEntity(vehicle)

@@ -9,8 +9,9 @@ local pumpOptions = {
         name = 'dante_fuel:take_nozzle',
         label = 'Take fuel nozzle',
         icon = 'fa-solid fa-gas-pump',
-        canInteract = function()
+        canInteract = function(entity)
             return not state.isFueling and not nozzle.isHeld() and not cache.vehicle
+                and not nozzle.hasNozzleAt(entity)
         end,
         onSelect = function(data) nozzle.take(data.entity) end,
     },
@@ -18,8 +19,8 @@ local pumpOptions = {
         name = 'dante_fuel:return_nozzle',
         label = 'Return fuel nozzle',
         icon = 'fa-solid fa-rotate-left',
-        canInteract = function()
-            return nozzle.isHeld() and not cache.vehicle
+        canInteract = function(entity)
+            return nozzle.isHeldAt(entity) and not cache.vehicle
         end,
         onSelect = function(data) nozzle.returnAt(data.entity) end,
     },
