@@ -118,8 +118,8 @@ local function attachToHand(data)
     local bone = GetPedBoneIndex(ped, 28422)
     if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
     SetEntityCollision(obj, false, false)
-    -- Whip's nozzle is held by the right hand; keep its spout aligned with the forearm.
-    AttachEntityToEntity(obj, ped, bone, 0.13, 0.04, 0.0, -90.0, 0.0, 0.0, false, false, false, false, 2, true)
+    -- Match Whip's held-prop placement and attachment flags exactly.
+    AttachEntityToEntity(obj, ped, bone, 0.13, 0.05, 0.02, -80.0, 0.0, 15.0, true, true, false, true, 1, true)
 end
 
 local function attachToVehicle(data)
@@ -409,7 +409,7 @@ function nozzle.take(pump)
     if IsEntityAttached(obj) then DetachEntity(obj, true, true) end
     SetEntityCollision(obj, false, false)
     AttachEntityToEntity(obj, cache.ped, GetPedBoneIndex(cache.ped, 28422),
-        0.13, 0.04, 0.0, -90.0, 0.0, 0.0, false, false, false, false, 2, true)
+        0.13, 0.05, 0.02, -80.0, 0.0, 15.0, true, true, false, true, 1, true)
     local netId = NetworkGetNetworkIdFromEntity(obj)
     local networkDeadline = GetGameTimer() + 1500
     while (not NetworkGetEntityIsNetworked(obj) or netId == 0) and GetGameTimer() < networkDeadline do
@@ -460,31 +460,76 @@ local function turned(point, pitch, yaw)
 end
 
 local function getFillerPoint(vehicle)
-    local bones = { 'petrolcap', 'petroltank_l', 'petroltank_r', 'petroltank' }
-    for i = 1, #bones do
-        local bone = GetEntityBoneIndexByName(vehicle, bones[i])
-        if bone ~= -1 then
-            local p = GetWorldPositionOfEntityBone(vehicle, bone)
-            if p and (p.x ~= 0.0 or p.y ~= 0.0 or p.z ~= 0.0) then
-                local localPos = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
-                local side = localPos.x < 0.0 and -1.0 or 1.0
-                local heading = GetEntityHeading(vehicle) + (side * 90.0)
-                return p, heading
-            end
-        end
+    local model = GetEntityModel(vehicle)
+    local heading = GetEntityHeading(vehicle)
+
+    -- Use the real cap bone whenever the vehicle has one.
+    local cap = GetEntityBoneIndexByName(vehicle, 'petrolcap')
+    if cap ~= -1 then
+        local point = GetWorldPositionOfEntityBone(vehicle, cap)
+        local localPoint = GetOffsetFromEntityGivenWorldCoords(vehicle, point.x, point.y, point.z)
+        local side = localPoint.x < 0.0 and -1.0 or 1.0
+        return point, heading + (side * 90.0)
     end
 
-    local minDim, maxDim = GetModelDimensions(GetEntityModel(vehicle))
-    local playerPos = GetEntityCoords(cache.ped)
-    local playerLocal = GetOffsetFromEntityGivenWorldCoords(vehicle, playerPos.x, playerPos.y, playerPos.z)
-    local side = playerLocal.x < 0.0 and -1.0 or 1.0
-    local localPoint = vec3(
-        side * math.max(math.abs(minDim.x), math.abs(maxDim.x)) * 0.82,
-        minDim.y * 0.35,
-        minDim.z + (maxDim.z - minDim.z) * 0.48
+    -- Whip's fallback: find the filler above the rear wheel, at door-handle height,
+    -- then ray from outside the vehicle toward its centre to land on the actual skin.
+    local minDim, maxDim = GetModelDimensions(model)
+    local leftTank = GetEntityBoneIndexByName(vehicle, 'petroltank_l') ~= -1
+    local rightTank = GetEntityBoneIndexByName(vehicle, 'petroltank_r') ~= -1
+    local side = leftTank ~= rightTank and (leftTank and -1.0 or 1.0)
+        or ((model % 2 == 0) and -1.0 or 1.0)
+
+    local handles = side < 0.0
+        and { 'handle_dside_r', 'handle_dside_f' }
+        or { 'handle_pside_r', 'handle_pside_f' }
+    local height
+    for i = 1, #handles do
+        local bone = GetEntityBoneIndexByName(vehicle, handles[i])
+        if bone ~= -1 then
+            height = GetOffsetFromEntityGivenWorldCoords(
+                vehicle,
+                GetWorldPositionOfEntityBone(vehicle, bone).x,
+                GetWorldPositionOfEntityBone(vehicle, bone).y,
+                GetWorldPositionOfEntityBone(vehicle, bone).z
+            ).z
+            break
+        end
+    end
+    if not height then
+        height = minDim.z + math.min(1.0, (maxDim.z - minDim.z) * 0.5)
+    end
+
+    local wheelName = side < 0.0 and 'wheel_lr' or 'wheel_rr'
+    local wheel = GetEntityBoneIndexByName(vehicle, wheelName)
+    local y
+    if wheel ~= -1 then
+        local wheelPos = GetOffsetFromEntityGivenWorldCoords(
+            vehicle,
+            GetWorldPositionOfEntityBone(vehicle, wheel).x,
+            GetWorldPositionOfEntityBone(vehicle, wheel).y,
+            GetWorldPositionOfEntityBone(vehicle, wheel).z
+        )
+        y = wheelPos.y
+    else
+        y = minDim.y + (maxDim.y - minDim.y) * 0.25
+    end
+
+    local x = side < 0.0 and minDim.x or maxDim.x
+    local outside = GetOffsetFromEntityInWorldCoords(vehicle, x + side, y, height)
+    local inside = GetOffsetFromEntityInWorldCoords(vehicle, 0.0, y, height)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(
+        outside.x, outside.y, outside.z, inside.x, inside.y, inside.z, 2, cache.ped, 7
     )
-    local world = GetOffsetFromEntityInWorldCoords(vehicle, localPoint.x, localPoint.y, localPoint.z)
-    return world, GetEntityHeading(vehicle) + (side * 90.0)
+    local _, hit, hitPosition, _, hitEntity = GetShapeTestResult(ray)
+    local point
+    if hit == 1 and hitEntity == vehicle then
+        point = hitPosition
+    else
+        point = GetOffsetFromEntityInWorldCoords(vehicle, x, y, height)
+    end
+
+    return point, heading + (side < 0.0 and 90.0 or -90.0)
 end
 
 function nozzle.insert(vehicle)
