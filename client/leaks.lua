@@ -54,7 +54,7 @@ function leaks.start(data)
 
                 local elapsed = GetGameTimer() - spill.started
                 if elapsed >= igniteAt and (not spill.lastFire or GetGameTimer() - spill.lastFire >= 1100) then
-                    local fire = StartScriptFire(point.x, point.y, point.z, 8, false)
+                    local fire = StartScriptFire(point.x, point.y, point.z, 8, true)
                     if fire and fire ~= 0 then spill.fires[#spill.fires + 1] = fire end
                     spill.lastFire = GetGameTimer()
                 end
