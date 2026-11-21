@@ -1,5 +1,6 @@
 -- Native FiveM nozzle props and rope hoses. The server replicates nozzle state; each client draws its own rope.
 local screens = require 'client.screens'
+local state = require 'client.state'
 local nozzle = { states = {}, heldKey = nil }
 local ropes, hoseSegments, holsters, hiddenPumps, groundTargets = {}, {}, {}, {}, {}
 local HOSE_MODEL = joaat('whip_hose_seg')
@@ -150,27 +151,36 @@ end
 
 local function addGroundTarget(data)
     if not data or data.state ~= 'ground' then return end
-    local obj = entityFrom(data.nozzleNet)
-    if not obj or groundTargets[obj] then return end
-    groundTargets[obj] = true
-    exports['sd-interact']:addLocalEntity(obj, {
-        name = 'dante_fuel:dropped_nozzle',
-        interactDistance = 2.0,
-        options = {{
-            name = 'dante_fuel:pickup_dropped_nozzle',
-            label = 'Pick up fuel nozzle',
-            icon = 'fa-solid fa-hand',
-            canInteract = function()
-                local current = nozzle.states[data.key]
-                return current ~= nil and current.state == 'ground'
-                    and current.nozzleNet == data.nozzleNet and not nozzle.isHeld()
-                    and not cache.vehicle and not state.isFueling
-            end,
-            onSelect = function()
-                TriggerServerEvent('dante_fuel:pickupDroppedNozzle', data.key)
-            end,
-        }},
-    })
+    CreateThread(function()
+        local deadline = GetGameTimer() + 5000
+        local obj
+        repeat
+            local current = nozzle.states[data.key]
+            if not current or current.state ~= 'ground' or current.nozzleNet ~= data.nozzleNet then return end
+            obj = entityFrom(data.nozzleNet)
+            if not obj then Wait(100) end
+        until obj or GetGameTimer() >= deadline
+        if not obj or groundTargets[obj] then return end
+        groundTargets[obj] = true
+        exports['sd-interact']:addLocalEntity(obj, {
+            name = 'dante_fuel:dropped_nozzle',
+            interactDistance = 2.0,
+            options = {{
+                name = 'dante_fuel:pickup_dropped_nozzle',
+                label = 'Pick up fuel nozzle',
+                icon = 'fa-solid fa-hand',
+                canInteract = function()
+                    local current = nozzle.states[data.key]
+                    return current ~= nil and current.state == 'ground'
+                        and current.nozzleNet == data.nozzleNet and not nozzle.isHeld()
+                        and not cache.vehicle and not state.isFueling
+                end,
+                onSelect = function()
+                    TriggerServerEvent('dante_fuel:pickupDroppedNozzle', data.key)
+                end,
+            }},
+        })
+    end)
 end
 
 local function deleteNetworkNozzle(data)
