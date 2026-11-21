@@ -211,7 +211,13 @@ local function startDrawLoop()
 
             if activePump then
                 local distance = #(playerCoords - GetEntityCoords(activePump))
-                if distance <= SCREEN_RANGE and screenUp then
+                if distance > SCREEN_RANGE then
+                    activePump = nil
+                    thanksAt = nil
+                    activeMessage = { state = 'idle' }
+                    screenWantedAt = GetGameTimer()
+                    Wait(200)
+                elseif screenUp then
                     drawScreen(activePump, 'A', 1)
                     drawScreen(activePump, 'B', 2)
                     Wait(0)
@@ -224,6 +230,9 @@ local function startDrawLoop()
         end
     end)
 end
+
+-- Start the nearby-pump scan immediately; the LCD must not depend on taking a nozzle first.
+startDrawLoop()
 
 local screens = {}
 
