@@ -81,7 +81,7 @@ exports['sd-interact']:addGlobalVehicle({
                 local key = nozzle.forVehicle(entity)
                 return key ~= nil and not cache.vehicle and not state.isFueling
             end,
-            onSelect = function() nozzle.remove() end,
+            onSelect = function(data) nozzle.remove(data.entity) end,
         },
     },
 })
