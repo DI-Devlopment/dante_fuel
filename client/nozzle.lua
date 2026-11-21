@@ -469,6 +469,15 @@ local function getFillerPoint(vehicle)
         local point = GetWorldPositionOfEntityBone(vehicle, cap)
         local localPoint = GetOffsetFromEntityGivenWorldCoords(vehicle, point.x, point.y, point.z)
         local side = localPoint.x < 0.0 and -1.0 or 1.0
+        local minDim = GetModelDimensions(model)
+        local edgeX = side < 0.0 and minDim.x or select(2, GetModelDimensions(model)).x
+        local outside = GetOffsetFromEntityInWorldCoords(vehicle, edgeX + side, localPoint.y, localPoint.z)
+        local inside = GetOffsetFromEntityInWorldCoords(vehicle, 0.0, localPoint.y, localPoint.z)
+        local ray = StartExpensiveSynchronousShapeTestLosProbe(
+            outside.x, outside.y, outside.z, inside.x, inside.y, inside.z, 2, cache.ped, 7
+        )
+        local _, hit, hitPosition, _, hitEntity = GetShapeTestResult(ray)
+        if hit == 1 and hitEntity == vehicle then point = hitPosition end
         return point, heading + (side * 90.0)
     end
 
