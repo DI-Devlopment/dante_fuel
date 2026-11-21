@@ -115,6 +115,7 @@ local function setHolster(data, visible)
 end
 local function ropeEnds(data)
     if data.snapped then return end
+    if data.torn and not data.pumpNet then return end
     local pump = findPump(data)
     local obj = entityFrom(data.nozzleNet)
     if not pump or pump == 0 or not obj then return end
@@ -140,6 +141,7 @@ local function ropeEnds(data)
                 finish.x, finish.y, finish.z, 6.0, false, false, nil, nil)
             RopeForceLength(rope, 4.5)
             ropes[data.key] = rope
+            wakeTornPump(data)
         end
     end
 end
@@ -180,8 +182,7 @@ local function apply(data)
         while GetGameTimer() < deadline do
             local p = findPump(data)
             local o = entityFrom(data.nozzleNet)
-            if p and p ~= 0 and o then
-                wakeTornPump(data)
+            if p and p ~= 0 and o and (not data.torn or data.pumpNet) then
                 ropeEnds(data)
                 return
             end
@@ -189,6 +190,25 @@ local function apply(data)
         end
     end)
 end
+
+RegisterNetEvent('dante_fuel:createTornPump', function(key, pump, model, heading)
+    if type(key) ~= 'string' or type(pump) ~= 'table' or type(model) ~= 'number' then return end
+    local data = nozzle.states[key]
+    if not data or not data.torn or data.tornOwner ~= GetPlayerServerId(PlayerId()) or data.pumpNet then return end
+    RequestModel(model)
+    local deadline = GetGameTimer() + 3000
+    while not HasModelLoaded(model) and GetGameTimer() < deadline do Wait(0) end
+    if not HasModelLoaded(model) then return end
+    local obj = CreateObjectNoOffset(model, pump.x, pump.y, pump.z, true, true, false)
+    SetModelAsNoLongerNeeded(model)
+    if not obj or obj == 0 then return end
+    SetEntityAsMissionEntity(obj, true, true)
+    SetEntityHeading(obj, heading or 0.0)
+    FreezeEntityPosition(obj, true)
+    local netId = NetworkGetNetworkIdFromEntity(obj)
+    SetNetworkIdCanMigrate(netId, true)
+    TriggerServerEvent('dante_fuel:tornPumpCreated', key, netId)
+end)
 
 RegisterNetEvent('dante_fuel:nozzleState', apply)
 RegisterNetEvent('dante_fuel:nozzleDenied', function(netId)
