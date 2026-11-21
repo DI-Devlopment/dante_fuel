@@ -51,7 +51,8 @@ end
 -- Client creates and attaches the networked prop, then submits its network ID.
 RegisterNetEvent('dante_fuel:takeNozzle', function(pumpCoords, model, side, netId)
     local src = source
-    if type(pumpCoords) ~= 'table' or type(model) ~= 'number' or (side ~= 'A' and side ~= 'B')
+    if type(pumpCoords) ~= 'table' or type(pumpCoords.x) ~= 'number' or type(pumpCoords.y) ~= 'number'
+        or type(pumpCoords.z) ~= 'number' or type(model) ~= 'number' or (side ~= 'A' and side ~= 'B')
         or type(netId) ~= 'number' then return deny(src, netId) end
     if not validPump(model) then return deny(src, netId) end
     local ped = GetPlayerPed(src)
@@ -87,7 +88,8 @@ RegisterNetEvent('dante_fuel:dropNozzle', function(at)
     local ped = GetPlayerPed(src)
     if ped == 0 then return end
     local p = GetEntityCoords(ped)
-    local drop = type(at) == 'table' and coordsOf(at) or p
+    local drop = type(at) == 'table' and type(at.x) == 'number' and type(at.y) == 'number'
+        and type(at.z) == 'number' and coordsOf(at) or p
     if #(drop - p) > 3.0 then drop = p end
     found.state, found.holder, found.vehicle = 'ground', nil, nil
     found.ground = {x=drop.x,y=drop.y,z=drop.z}
