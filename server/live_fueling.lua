@@ -112,6 +112,23 @@ lib.callback.register('dante_fuel:finishLiveFuel', function(source, sessionId, f
     return true
 end)
 
+CreateThread(function()
+    while true do
+        local now = GetGameTimer()
+        for source, session in pairs(sessions) do
+            if now - session.lastTick > 30000 then
+                refund(source, session)
+                sessions[source] = nil
+                TriggerClientEvent('ox_lib:notify', source, {
+                    type = 'error',
+                    description = 'Fueling session expired. Reserved money was returned.'
+                })
+            end
+        end
+        Wait(5000)
+    end
+end)
+
 AddEventHandler('playerDropped', function()
     local source = source
     local session = sessions[source]
