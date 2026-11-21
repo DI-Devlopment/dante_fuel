@@ -159,7 +159,7 @@ local function apply(data)
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'thanks')
         return
     end
-    if not data.torn then restorePump(data.key) else wakeTornPump(data) end
+    if not data.torn then restorePump(data.key) end
     setHolster(data, false)
     if data.state == 'hand' then
         screens.setPumpState(vec3(data.pump.x, data.pump.y, data.pump.z), 'nozzle_out')
