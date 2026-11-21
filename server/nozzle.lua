@@ -72,9 +72,10 @@ local function makeGround(n, at)
     send(n)
 end
 
-RegisterNetEvent('dante_fuel:takeNozzle', function(pumpCoords, model, side)
+RegisterNetEvent('dante_fuel:takeNozzle', function(pumpCoords, model, side, handBone)
     local src = source
-    if type(pumpCoords) ~= 'table' or type(model) ~= 'number' or (side ~= 'A' and side ~= 'B') then return end
+    if type(pumpCoords) ~= 'table' or type(model) ~= 'number' or (side ~= 'A' and side ~= 'B')
+        or type(handBone) ~= 'number' or handBone < 0 or handBone > 1000 then return end
     if not validPump(model) then return end
     local ped = GetPlayerPed(src)
     if ped == 0 then return end
@@ -101,8 +102,7 @@ RegisterNetEvent('dante_fuel:takeNozzle', function(pumpCoords, model, side)
     if not obj or obj == 0 then return end
     DetachEntity(obj, true, true)
     SetEntityCollision(obj, false, false)
-    local bone = GetPedBoneIndex(ped, 28422)
-    AttachEntityToEntity(obj, ped, bone, 0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
+    AttachEntityToEntity(obj, ped, handBone, 0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
     n.state, n.holder, n.vehicle, n.changedAt = 'hand', src, nil, GetGameTimer()
     send(n)
 end)
@@ -119,32 +119,28 @@ RegisterNetEvent('dante_fuel:dropNozzle', function()
     makeGround(found, c)
 end)
 
-RegisterNetEvent('dante_fuel:insertNozzle', function(netId)
+RegisterNetEvent('dante_fuel:insertNozzle', function(netId, offset)
     local src = source
     local n
     for _, v in pairs(nozzles) do if v.state == 'hand' and v.holder == src then n = v break end end
-    if not n or type(netId) ~= 'number' then return end
+    if not n or type(netId) ~= 'number' or type(offset) ~= 'table'
+        or type(offset.x) ~= 'number' or type(offset.y) ~= 'number' or type(offset.z) ~= 'number'
+        or math.abs(offset.x) > 5.0 or math.abs(offset.y) > 5.0 or math.abs(offset.z) > 5.0 then return end
     local ped = GetPlayerPed(src)
     local vehicle = NetworkGetEntityFromNetworkId(netId)
     if ped == 0 or not vehicle or vehicle == 0 or GetEntityType(vehicle) ~= 2 then return end
     if #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) > 3.5 or #(GetEntityCoords(vehicle) - coordsOf(n.pump)) > 8.0 then return end
     local obj = n.nozzleNet and NetworkGetEntityFromNetworkId(n.nozzleNet)
     if not obj or obj == 0 then return end
-    local bone = GetEntityBoneIndexByName(vehicle, 'petrolcap')
-    if bone == -1 then bone = GetEntityBoneIndexByName(vehicle, 'petroltank_l') end
-    if bone == -1 then bone = GetEntityBoneIndexByName(vehicle, 'petroltank') end
-    if bone == -1 then return end
-    local p = GetWorldPositionOfEntityBone(vehicle, bone)
-    local off = GetOffsetFromEntityGivenWorldCoords(vehicle, p.x, p.y, p.z)
     SetEntityCollision(obj, false, false)
-    AttachEntityToEntity(obj, vehicle, bone, off.x, off.y, off.z, -25.0, 0.0, 180.0, false, false, false, false, 2, true)
+    AttachEntityToEntity(obj, vehicle, 0, offset.x, offset.y, offset.z, -25.0, 0.0, 180.0, false, false, false, false, 2, true)
     n.state, n.holder, n.vehicle, n.changedAt = 'car', nil, netId, GetGameTimer()
     send(n)
 end)
 
-RegisterNetEvent('dante_fuel:removeNozzle', function(netId)
+RegisterNetEvent('dante_fuel:removeNozzle', function(netId, handBone)
     local src = source
-    if type(netId) ~= 'number' then return end
+    if type(netId) ~= 'number' or type(handBone) ~= 'number' or handBone < 0 or handBone > 1000 then return end
     for _, n in pairs(nozzles) do
         if n.state == 'car' and n.holder == nil and n.vehicle == netId then
             local vehicle = n.vehicle and NetworkGetEntityFromNetworkId(n.vehicle)
@@ -153,8 +149,7 @@ RegisterNetEvent('dante_fuel:removeNozzle', function(netId)
                 local obj = n.nozzleNet and NetworkGetEntityFromNetworkId(n.nozzleNet)
                 if obj and obj ~= 0 then
                     DetachEntity(obj, true, true)
-                    local bone = GetPedBoneIndex(ped, 28422)
-                    AttachEntityToEntity(obj, ped, bone, 0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
+                    AttachEntityToEntity(obj, ped, handBone, 0.13, 0.05, 0.02, -80.0, 0.0, 15.0, false, false, false, false, 2, true)
                 end
                 n.state, n.holder, n.vehicle = 'hand', src, nil
                 cleanupPumpCopy(n)
