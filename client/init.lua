@@ -75,7 +75,7 @@ lib.onCache('seat', function(seat)
 	end
 end)
 
-if config.ox_target then return require 'client.target' end
+if config.sd_interact then return require 'client.target' end
 
 RegisterCommand('startfueling', function()
 	if state.isFueling or cache.vehicle or lib.progressActive() then return end
