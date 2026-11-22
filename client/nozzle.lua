@@ -207,6 +207,16 @@ local function findPump(data)
         local copy = entityFrom(data.pumpNet)
         if copy then return copy end
     end
+    local prefix = data.key and data.key:sub(1, -3)
+    if prefix then
+        for key, sibling in pairs(nozzle.states) do
+            if key ~= data.key and sibling.key and sibling.key:sub(1, -3) == prefix
+                and sibling.torn and sibling.pumpNet then
+                local copy = entityFrom(sibling.pumpNet)
+                if copy then return copy end
+            end
+        end
+    end
     return GetClosestObjectOfType(c.x, c.y, c.z, 2.0, data.model, false, false, false)
 end
 local function removeRope(key)
