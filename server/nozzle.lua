@@ -67,6 +67,18 @@ local function shareTornPump(n, owner)
         end
     end
 end
+local function snapPumpGroup(n)
+    local group = pumpGroup(n.key)
+    for _, sibling in pairs(nozzles) do
+        if pumpGroup(sibling.key) == group and sibling.state ~= 'holstered' then
+            sibling.torn, sibling.tornOwner, sibling.tornModel = false, nil, nil
+            sibling.tornAt, sibling.pumpNet, sibling.spillOwner = nil, nil, nil
+            sibling.snapped = true
+            sibling.changedAt = GetGameTimer()
+            send(sibling)
+        end
+    end
+end
 local function reset(n, reason)
     cleanupPumpCopy(n)
     n.state, n.holder, n.vehicle, n.snapped = 'holstered', nil, nil, false
@@ -236,8 +248,7 @@ CreateThread(function()
             elseif n.state == 'ground' and now - n.changedAt >= 30000 then
                 reset(n, 'timeout')
             elseif n.state == 'car' and n.torn and not n.pumpNet and now - (n.changedAt or now) > 5000 then
-                n.torn, n.tornOwner, n.tornModel, n.tornAt, n.spillOwner, n.snapped = false, nil, nil, nil, nil, true
-                send(n)
+                snapPumpGroup(n)
             elseif n.state == 'car' and n.vehicle then
                 local vehicle = entityFrom(n.vehicle)
                 if vehicle == 0 then
@@ -256,14 +267,10 @@ CreateThread(function()
                             send(n)
                             TriggerClientEvent('dante_fuel:createTornPump', owner, n.key, n.pump, n.tornModel, n.heading or 0.0)
                         else
-                            n.snapped = true
-                            n.changedAt = now
-                            send(n)
+                            snapPumpGroup(n)
                         end
                     else
-                        n.snapped = true
-                        n.changedAt = now
-                        send(n)
+                        snapPumpGroup(n)
                     end
                 end
             end
