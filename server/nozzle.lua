@@ -44,6 +44,10 @@ local function cleanupPumpCopy(n)
     for _, sibling in pairs(nozzles) do
         if sibling ~= n and pumpGroup(sibling.key) == pumpGroup(n.key)
             and sibling.state ~= 'holstered' and sibling.torn and sibling.pumpNet == sharedNet then
+            if n.spillOwner then
+                sibling.spillOwner = true
+                send(sibling)
+            end
             return
         end
     end

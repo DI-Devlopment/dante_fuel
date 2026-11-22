@@ -28,7 +28,7 @@ local function groundPoint(vehicle)
 end
 
 function leaks.start(data)
-    if not data or not data.key or active[data.key] or not data.vehicle then return end
+    if not data or not data.key or data.spillOwner == false or active[data.key] or not data.vehicle then return end
     local elapsed = math.max(0, tonumber(data.tornElapsed) or 0)
     local spill = { started = GetGameTimer() - elapsed, fires = {}, cancelled = false }
     active[data.key] = spill

@@ -218,6 +218,17 @@ local function removeRope(key)
     removeHoseSegments(key)
 end
 local function restorePump(key)
+    local data = nozzle.states[key]
+    local prefix = data and data.key and data.key:sub(1, -3)
+    if prefix then
+        for siblingKey, sibling in pairs(nozzle.states) do
+            if siblingKey ~= key and sibling.key and sibling.key:sub(1, -3) == prefix
+                and sibling.state ~= 'holstered' and sibling.torn then
+                hiddenPumps[key] = nil
+                return
+            end
+        end
+    end
     local p = hiddenPumps[key]
     if p and DoesEntityExist(p) then SetEntityVisible(p, true, false) end
     hiddenPumps[key] = nil
