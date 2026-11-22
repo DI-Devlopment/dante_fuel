@@ -230,18 +230,22 @@ end
 local function restorePump(key)
     local data = nozzle.states[key]
     local prefix = data and data.key and data.key:sub(1, -3)
-    if prefix then
-        for siblingKey, sibling in pairs(nozzle.states) do
-            if siblingKey ~= key and sibling.key and sibling.key:sub(1, -3) == prefix
-                and sibling.state ~= 'holstered' and sibling.torn then
-                hiddenPumps[key] = nil
-                return
-            end
+    if not prefix then return end
+
+    for siblingKey, sibling in pairs(nozzle.states) do
+        if siblingKey ~= key and sibling.key and sibling.key:sub(1, -3) == prefix
+            and sibling.state ~= 'holstered' and sibling.torn then
+            -- Keep every original-pump reference until the last side is restored.
+            return
         end
     end
-    local p = hiddenPumps[key]
-    if p and DoesEntityExist(p) then SetEntityVisible(p, true, false) end
-    hiddenPumps[key] = nil
+
+    for hiddenKey, pump in pairs(hiddenPumps) do
+        if hiddenKey:sub(1, -3) == prefix then
+            if pump and DoesEntityExist(pump) then SetEntityVisible(pump, true, false) end
+            hiddenPumps[hiddenKey] = nil
+        end
+    end
 end
 local function clearHolsters(key)
     local pair = holsters[key]
