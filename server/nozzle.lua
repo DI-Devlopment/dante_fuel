@@ -36,6 +36,7 @@ local function send(n, target)
 end
 local function cleanupPumpCopy(n)
     local sharedNet = n.pumpNet
+    local wasSpillOwner = n.spillOwner
     n.pumpNet, n.torn, n.tornOwner, n.tornModel, n.tornAt, n.spillOwner = nil, false, nil, nil, nil, nil
     if not sharedNet then return end
 
@@ -44,7 +45,7 @@ local function cleanupPumpCopy(n)
     for _, sibling in pairs(nozzles) do
         if sibling ~= n and pumpGroup(sibling.key) == pumpGroup(n.key)
             and sibling.state ~= 'holstered' and sibling.torn and sibling.pumpNet == sharedNet then
-            if n.spillOwner then
+            if wasSpillOwner then
                 sibling.spillOwner = true
                 send(sibling)
             end
