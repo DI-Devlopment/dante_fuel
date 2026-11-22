@@ -24,21 +24,44 @@ local function entityFrom(net)
     if entity == 0 or not DoesEntityExist(entity) then return 0 end
     return entity
 end
+local function pumpGroup(key) return key and key:sub(1, -3) end
 local function send(n, target)
     TriggerClientEvent('dante_fuel:nozzleState', target or -1, {
         key=n.key, pump=n.pump, model=n.model, side=n.side, state=n.state,
         holder=n.holder, vehicle=n.vehicle, offset=n.offset, nozzleNet=n.nozzleNet, ground=n.ground,
-        torn=n.torn, tornOwner=n.tornOwner, tornModel=n.tornModel,
+        torn=n.torn, tornOwner=n.tornOwner, tornModel=n.tornModel, spillOwner=n.spillOwner,
         tornElapsed=n.tornAt and math.max(0, GetGameTimer() - n.tornAt) or 0,
         pumpNet=n.pumpNet, snapped=n.snapped,
     })
 end
 local function cleanupPumpCopy(n)
-    if n.pumpNet then
-        local e = entityFrom(n.pumpNet)
-        if e ~= 0 and DoesEntityExist(e) then DeleteEntity(e) end
+    local sharedNet = n.pumpNet
+    n.pumpNet, n.torn, n.tornOwner, n.tornModel, n.tornAt, n.spillOwner = nil, false, nil, nil, nil, nil
+    if not sharedNet then return end
+
+    -- Both sides of one physical pump share its torn replacement. Keep it alive
+    -- while the opposite nozzle is still out, on the ground, or in a vehicle.
+    for _, sibling in pairs(nozzles) do
+        if sibling ~= n and pumpGroup(sibling.key) == pumpGroup(n.key)
+            and sibling.state ~= 'holstered' and sibling.torn and sibling.pumpNet == sharedNet then
+            return
+        end
     end
-    n.pumpNet, n.torn, n.tornOwner, n.tornModel, n.tornAt = nil, false, nil, nil, nil
+
+    local entity = entityFrom(sharedNet)
+    if entity ~= 0 and DoesEntityExist(entity) then DeleteEntity(entity) end
+end
+local function shareTornPump(n, owner)
+    local group = pumpGroup(n.key)
+    for _, sibling in pairs(nozzles) do
+        if sibling ~= n and pumpGroup(sibling.key) == group and sibling.state ~= 'holstered' then
+            sibling.torn, sibling.tornOwner = true, owner
+            sibling.tornModel, sibling.tornAt = n.tornModel, n.tornAt
+            sibling.pumpNet, sibling.spillOwner = n.pumpNet, false
+            sibling.changedAt = n.changedAt
+            send(sibling)
+        end
+    end
 end
 local function reset(n, reason)
     cleanupPumpCopy(n)
@@ -181,7 +204,9 @@ RegisterNetEvent('dante_fuel:tornPumpCreated', function(key, netId)
     if copy == 0 or GetEntityModel(copy) ~= expectedModel
         or #(GetEntityCoords(copy) - coordsOf(n.pump)) > 3.0 then return end
     n.pumpNet = netId
+    n.spillOwner = true
     send(n)
+    shareTornPump(n, src)
 end)
 
 RegisterNetEvent('dante_fuel:clientReady', function()
@@ -207,7 +232,7 @@ CreateThread(function()
             elseif n.state == 'ground' and now - n.changedAt >= 30000 then
                 reset(n, 'timeout')
             elseif n.state == 'car' and n.torn and not n.pumpNet and now - (n.changedAt or now) > 5000 then
-                n.torn, n.tornOwner, n.tornModel, n.tornAt, n.snapped = false, nil, nil, nil, true
+                n.torn, n.tornOwner, n.tornModel, n.tornAt, n.spillOwner, n.snapped = false, nil, nil, nil, nil, true
                 send(n)
             elseif n.state == 'car' and n.vehicle then
                 local vehicle = entityFrom(n.vehicle)
@@ -219,8 +244,10 @@ CreateThread(function()
                         local owner = NetworkGetEntityOwner(vehicle)
                         if owner and owner > 0 then
                             n.torn, n.tornOwner = true, owner
+                            n.spillOwner = true
                             n.tornModel = config.tornPumpModels[n.model] or n.model
                             n.tornAt = now
+                            shareTornPump(n, owner)
                             n.changedAt = now
                             send(n)
                             TriggerClientEvent('dante_fuel:createTornPump', owner, n.key, n.pump, n.tornModel, n.heading or 0.0)
