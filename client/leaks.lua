@@ -1,5 +1,5 @@
 -- Client-side visual spill and ignition after a modern pump tears away.
--- Every client receives the same authoritative torn-pump state and renders the trail locally.
+-- One spill is tracked per physical pump, not per nozzle side.
 local config = require 'config'
 local leaks = {}
 local active = {}
@@ -8,12 +8,17 @@ local function stopFire(handle)
     if handle and handle ~= 0 then StopFire(handle) end
 end
 
-function leaks.stop(key)
-    local spill = active[key]
+local function stopGroup(group)
+    local spill = active[group]
     if not spill then return end
     spill.cancelled = true
     for i = 1, #spill.fires do stopFire(spill.fires[i]) end
-    active[key] = nil
+    active[group] = nil
+end
+
+function leaks.stop(key)
+    if type(key) ~= 'string' then return end
+    stopGroup(key:sub(1, -3))
 end
 
 local function groundPoint(vehicle)
@@ -28,10 +33,20 @@ local function groundPoint(vehicle)
 end
 
 function leaks.start(data)
-    if not data or not data.key or data.spillOwner == false or active[data.key] or not data.vehicle then return end
+    if not data or not data.key or data.spillOwner == false or not data.vehicle then return end
+    local group = data.key:sub(1, -3)
+    local current = active[group]
+    if current and current.vehicle == data.vehicle then return end
+    if current then stopGroup(group) end
+
     local elapsed = math.max(0, tonumber(data.tornElapsed) or 0)
-    local spill = { started = GetGameTimer() - elapsed, fires = {}, cancelled = false }
-    active[data.key] = spill
+    local spill = {
+        started = GetGameTimer() - elapsed,
+        fires = {},
+        cancelled = false,
+        vehicle = data.vehicle,
+    }
+    active[group] = spill
 
     CreateThread(function()
         local duration = math.max(1, tonumber(config.spillDuration) or 20) * 1000
@@ -41,9 +56,9 @@ function leaks.start(data)
         local loadDeadline = GetGameTimer() + 3000
         while not HasNamedPtfxAssetLoaded(asset) and GetGameTimer() < loadDeadline do Wait(25) end
 
-        while not spill.cancelled and active[data.key] == spill
+        while not spill.cancelled and active[group] == spill
             and GetGameTimer() - spill.started < duration do
-            local vehicle = NetworkGetEntityFromNetworkId(data.vehicle)
+            local vehicle = NetworkGetEntityFromNetworkId(spill.vehicle)
             if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
                 local point = groundPoint(vehicle)
                 if HasNamedPtfxAssetLoaded(asset) then
@@ -65,14 +80,14 @@ function leaks.start(data)
         end
 
         for i = 1, #spill.fires do stopFire(spill.fires[i]) end
-        if active[data.key] == spill then active[data.key] = nil end
+        if active[group] == spill then active[group] = nil end
         if HasNamedPtfxAssetLoaded(asset) then RemoveNamedPtfxAsset(asset) end
     end)
 end
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    for key in pairs(active) do leaks.stop(key) end
+    for group in pairs(active) do stopGroup(group) end
 end)
 
 return leaks

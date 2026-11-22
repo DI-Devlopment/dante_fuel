@@ -322,12 +322,26 @@ local function ropeEnds(data)
         end
     end
 end
+local function hasTornSibling(key)
+    local prefix = key:sub(1, -3)
+    for siblingKey, sibling in pairs(nozzle.states) do
+        if siblingKey ~= key and sibling.key and sibling.key:sub(1, -3) == prefix
+            and sibling.state ~= 'holstered' and sibling.torn then
+            return true
+        end
+    end
+    return false
+end
 local function apply(data)
     if type(data) ~= 'table' or not data.key then return end
     local old = nozzle.states[data.key]
     if old then removeGroundTarget(old) end
     nozzle.states[data.key] = data
-    if data.torn and data.pumpNet then leaks.start(data) else leaks.stop(data.key) end
+    if data.torn and data.pumpNet then
+        leaks.start(data)
+    elseif not hasTornSibling(data.key) then
+        leaks.stop(data.key)
+    end
     local me = GetPlayerServerId(PlayerId())
     if data.state == 'holstered' then
         removeRope(data.key)
