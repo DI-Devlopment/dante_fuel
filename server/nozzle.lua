@@ -62,7 +62,9 @@ local function shareTornPump(n, owner)
             sibling.torn, sibling.tornOwner = true, owner
             sibling.tornModel, sibling.tornAt = n.tornModel, n.tornAt
             sibling.pumpNet, sibling.spillOwner = n.pumpNet, false
-            sibling.changedAt = n.changedAt
+            -- The sibling's old insertion timestamp may be minutes old. Give
+            -- the shared pump creation its own timeout window.
+            sibling.changedAt = n.tornAt or GetGameTimer()
             send(sibling)
         end
     end
